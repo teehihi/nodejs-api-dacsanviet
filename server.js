@@ -10,6 +10,7 @@ const userRoutes = require('./routes/users');
 const sessionRoutes = require('./routes/sessions');
 const User = require('./models/User');
 const Session = require('./models/Session');
+const OTP = require('./models/OTP');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -32,16 +33,19 @@ app.get('/', async (req, res) => {
   try {
     const userStats = await User.getStats();
     const sessionStats = await Session.getStats();
+    const otpStats = await OTP.getStats();
     
     res.json({
-      message: 'Group API Server - MySQL Version',
-      version: '2.0.0',
+      message: 'Group API Server - JWT + OTP Version',
+      version: '3.0.0',
+      features: ['JWT Authentication', 'OTP Verification', 'Email Service', 'Session Management'],
       database: {
         type: 'MySQL',
         status: 'Connected',
         stats: {
           users: userStats,
-          sessions: sessionStats
+          sessions: sessionStats,
+          otps: otpStats
         }
       },
       endpoints: {
@@ -49,15 +53,17 @@ app.get('/', async (req, res) => {
         users: 'GET /api/users',
         sessions: 'GET /api/sessions',
         register: 'POST /api/auth/register',
+        registerWithOTP: 'POST /api/auth/send-registration-otp + POST /api/auth/verify-registration-otp',
         login: 'POST /api/auth/login',
+        forgotPassword: 'POST /api/auth/send-password-reset-otp + POST /api/auth/reset-password-otp',
         database: 'GET /api/database'
       },
       time: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({
-      message: 'Group API Server - MySQL Version',
-      version: '2.0.0',
+      message: 'Group API Server - JWT + OTP Version',
+      version: '3.0.0',
       database: {
         type: 'MySQL',
         status: 'Error',
@@ -73,6 +79,7 @@ app.get('/api/database', async (req, res) => {
   try {
     const userStats = await User.getStats();
     const sessionStats = await Session.getStats();
+    const otpStats = await OTP.getStats();
 
     res.json({
       success: true,
@@ -84,11 +91,15 @@ app.get('/api/database', async (req, res) => {
         database: process.env.DB_NAME,
         stats: {
           users: userStats,
-          sessions: sessionStats
+          sessions: sessionStats,
+          otps: otpStats
         },
-        tables: ['users', 'sessions'],
+        tables: ['users', 'api_sessions', 'otp_codes'],
         features: [
           'User authentication',
+          'JWT token management',
+          'OTP verification',
+          'Email service',
           'Session management',
           'Password hashing',
           'Soft delete',

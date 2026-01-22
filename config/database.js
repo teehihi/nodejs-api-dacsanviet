@@ -135,6 +135,38 @@ const ensureApiTables = async () => {
       console.log('API Sessions table already exists');
     }
 
+    // Kiểm tra bảng otp_codes
+    const [otpTables] = await pool.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'otp_codes'
+    `, [dbConfig.database]);
+
+    if (otpTables.length === 0) {
+      // Tạo bảng otp_codes
+      const createOTPTable = `
+        CREATE TABLE otp_codes (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          email VARCHAR(100) NOT NULL,
+          otp_code VARCHAR(10) NOT NULL,
+          purpose ENUM('registration', 'password_reset') NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          expires_at TIMESTAMP NOT NULL,
+          is_used BOOLEAN DEFAULT FALSE,
+          used_at TIMESTAMP NULL,
+          INDEX idx_email (email),
+          INDEX idx_otp_code (otp_code),
+          INDEX idx_purpose (purpose),
+          INDEX idx_expires_at (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `;
+
+      await pool.execute(createOTPTable);
+      console.log('OTP Codes table created');
+    } else {
+      console.log('OTP Codes table already exists');
+    }
+
     return true;
   } catch (error) {
     console.error('Error ensuring API tables:', error.message);
@@ -270,18 +302,28 @@ const initializeDatabase = async () => {
   return true;
 };
 
-// Cleanup expired sessions
+// Cleanup expired sessions and OTPs
 const cleanupExpiredSessions = async () => {
   try {
-    const [result] = await pool.execute(
+    // Clean up expired sessions
+    const [sessionResult] = await pool.execute(
       'DELETE FROM api_sessions WHERE expires_at < NOW() OR is_active = FALSE'
     );
     
-    if (result.affectedRows > 0) {
-      console.log(`Cleaned up ${result.affectedRows} expired sessions`);
+    if (sessionResult.affectedRows > 0) {
+      console.log(`Cleaned up ${sessionResult.affectedRows} expired sessions`);
+    }
+
+    // Clean up expired OTPs
+    const [otpResult] = await pool.execute(
+      'DELETE FROM otp_codes WHERE expires_at < NOW() OR (is_used = TRUE AND used_at < DATE_SUB(NOW(), INTERVAL 1 DAY))'
+    );
+    
+    if (otpResult.affectedRows > 0) {
+      console.log(`Cleaned up ${otpResult.affectedRows} expired OTPs`);
     }
   } catch (error) {
-    console.error('Error cleaning up sessions:', error.message);
+    console.error('Error cleaning up expired data:', error.message);
   }
 };
 
