@@ -59,7 +59,7 @@ class EmailService {
 
       const result = await this.transporter.sendMail(mailOptions);
       console.log('Registration OTP email sent successfully:', result.messageId);
-      return { success: true, messageId: result.messageId };
+      return { success: true, messageId: result.messageId, info: result };
     } catch (error) {
       console.error('Error sending registration OTP email:', error);
       return { success: false, error: error.message };
