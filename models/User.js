@@ -15,7 +15,7 @@ class User {
   static async create(userData) {
     try {
       const user = new User(userData);
-      
+
       const [result] = await pool.execute(`
         INSERT INTO users (username, email, password, full_name, phone_number, role, is_active, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
@@ -46,7 +46,7 @@ class User {
         'SELECT * FROM users WHERE email = ? AND is_active = 1',
         [email]
       );
-      
+
       return rows.length > 0 ? User.formatUser(rows[0]) : null;
     } catch (error) {
       console.error('Error finding user by email:', error);
@@ -61,7 +61,7 @@ class User {
         'SELECT * FROM users WHERE username = ? AND is_active = 1',
         [username]
       );
-      
+
       return rows.length > 0 ? User.formatUser(rows[0]) : null;
     } catch (error) {
       console.error('Error finding user by username:', error);
@@ -76,7 +76,7 @@ class User {
         'SELECT * FROM users WHERE id = ?',
         [id]
       );
-      
+
       return rows.length > 0 ? User.formatUser(rows[0]) : null;
     } catch (error) {
       console.error('Error finding user by ID:', error);
@@ -94,7 +94,7 @@ class User {
         ORDER BY created_at DESC 
         LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
       `);
-      
+
       return rows.map(User.formatUser);
     } catch (error) {
       console.error('Error finding all users:', error);
@@ -109,7 +109,7 @@ class User {
         'SELECT id FROM users WHERE email = ?',
         [email]
       );
-      
+
       return rows.length > 0;
     } catch (error) {
       console.error('Error checking email exists:', error);
@@ -124,7 +124,7 @@ class User {
         'SELECT id FROM users WHERE username = ?',
         [username]
       );
-      
+
       return rows.length > 0;
     } catch (error) {
       console.error('Error checking username exists:', error);
@@ -137,7 +137,7 @@ class User {
     try {
       const fields = [];
       const values = [];
-      
+
       // Build dynamic update query
       Object.keys(updateData).forEach(key => {
         if (key === 'fullName') {
@@ -152,20 +152,23 @@ class User {
         } else if (key === 'role') {
           fields.push('role = ?');
           values.push(updateData[key]);
+        } else if (key === 'password') {
+          fields.push('password = ?');
+          values.push(updateData[key]);
         }
       });
-      
+
       if (fields.length === 0) {
         return await User.findById(id);
       }
-      
+
       values.push(id);
-      
+
       const [result] = await pool.execute(`
         UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, values);
-      
+
       if (result.affectedRows > 0) {
         return await User.findById(id);
       }
@@ -183,7 +186,7 @@ class User {
         'UPDATE users SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [id]
       );
-      
+
       return result.affectedRows > 0;
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -199,7 +202,7 @@ class User {
       const [adminRows] = await pool.execute('SELECT COUNT(*) as count FROM users WHERE role = "ADMIN"');
       const [staffRows] = await pool.execute('SELECT COUNT(*) as count FROM users WHERE role = "STAFF"');
       const [userRows] = await pool.execute('SELECT COUNT(*) as count FROM users WHERE role = "USER"');
-      
+
       return {
         totalUsers: totalRows[0].count,
         activeUsers: activeRows[0].count,
@@ -226,7 +229,7 @@ class User {
         ORDER BY created_at DESC 
         LIMIT ${parseInt(limit)}
       `, [searchTerm, searchTerm, searchTerm]);
-      
+
       return rows.map(User.formatUser);
     } catch (error) {
       console.error('Error searching users:', error);
@@ -245,7 +248,7 @@ class User {
         ORDER BY created_at DESC 
         LIMIT ${parseInt(limit)}
       `, [role]);
-      
+
       return rows.map(User.formatUser);
     } catch (error) {
       console.error('Error finding users by role:', error);
@@ -256,7 +259,7 @@ class User {
   // Format user data (convert snake_case to camelCase)
   static formatUser(dbUser) {
     if (!dbUser) return null;
-    
+
     return {
       id: dbUser.id,
       username: dbUser.username,

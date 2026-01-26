@@ -94,10 +94,13 @@ const register = async (req, res) => {
 // Login - Đăng nhập với JWT
 const login = async (req, res) => {
   try {
-    const { emailOrUsername, password } = req.body;
+    const { emailOrUsername, email, username, password } = req.body;
+
+    // Determine the identifier to use (support emailOrUsername, email, or username fields)
+    const loginIdentifier = emailOrUsername || email || username;
 
     // Validation
-    if (!emailOrUsername || !password) {
+    if (!loginIdentifier || !password) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập email/username và mật khẩu'
@@ -106,12 +109,12 @@ const login = async (req, res) => {
 
     // Tìm user theo email hoặc username
     let user = null;
-    
+
     // Kiểm tra xem input có phải là email không (có chứa @)
-    if (emailOrUsername.includes('@')) {
-      user = await User.findByEmail(emailOrUsername);
+    if (loginIdentifier.includes('@')) {
+      user = await User.findByEmail(loginIdentifier);
     } else {
-      user = await User.findByUsername(emailOrUsername);
+      user = await User.findByUsername(loginIdentifier);
     }
 
     if (!user) {
@@ -151,7 +154,7 @@ const login = async (req, res) => {
     // Tạo session để tracking (optional)
     const sessionId = `session_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const expiresAt = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)); // 7 days
-    
+
     const sessionData = {
       userId: user.id,
       sessionId: sessionId,
@@ -213,7 +216,7 @@ const logout = async (req, res) => {
 const checkSession = async (req, res) => {
   try {
     const { sessionId } = req.body;
-    
+
     if (!sessionId) {
       return res.status(400).json({
         success: false,
@@ -303,6 +306,7 @@ const logoutAll = async (req, res) => {
 const sendRegistrationOTP = async (req, res) => {
   try {
     const { email, fullName } = req.body;
+    console.log(`DEBUG: API received OTP request for email: "${email}"`);
 
     // Validation
     if (!email) {
