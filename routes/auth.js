@@ -61,9 +61,10 @@ router.get('/', (req, res) => {
       sendRegistrationOTP: {
         method: 'POST',
         path: '/api/auth/send-registration-otp',
-        description: 'Gửi OTP cho đăng ký tài khoản',
+        description: 'Gửi OTP cho đăng ký tài khoản (validate email & username trước khi gửi)',
         body: {
           email: 'string (required)',
+          username: 'string (required, min 3 chars)',
           fullName: 'string (optional)'
         }
       },

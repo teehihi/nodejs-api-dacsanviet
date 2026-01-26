@@ -26,25 +26,25 @@ class EmailService {
               <h1 style="color: #2c5aa0; margin: 0;">DacSanViet</h1>
               <p style="color: #666; margin: 5px 0;">Đặc sản Việt Nam</p>
             </div>
-            
+
             <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
               <h2 style="color: #333; margin-bottom: 20px;">Xác thực đăng ký tài khoản</h2>
-              
+
               ${fullName ? `<p style="color: #666; margin-bottom: 20px;">Xin chào <strong>${fullName}</strong>,</p>` : ''}
-              
+
               <p style="color: #666; margin-bottom: 30px;">
                 Cảm ơn bạn đã đăng ký tài khoản DacSanViet. Vui lòng sử dụng mã xác thực bên dưới để hoàn tất quá trình đăng ký:
               </p>
-              
+
               <div style="background: #fff; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px dashed #2c5aa0;">
                 <h1 style="color: #2c5aa0; font-size: 32px; margin: 0; letter-spacing: 5px;">${otpCode}</h1>
               </div>
-              
+
               <p style="color: #666; font-size: 14px; margin-top: 20px;">
                 Mã xác thực có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.
               </p>
             </div>
-            
+
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
               <p style="color: #999; font-size: 12px;">
                 Nếu bạn không yêu cầu đăng ký tài khoản, vui lòng bỏ qua email này.
@@ -69,11 +69,8 @@ class EmailService {
   // Gửi OTP cho reset password
   async sendPasswordResetOTP(email, otpCode, fullName = '') {
     try {
-      const fromName = process.env.SMTP_FROM_NAME || 'DacSanViet';
-      const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
-
       const mailOptions = {
-        from: `"${fromName}" <${fromEmail}>`,
+        from: process.env.EMAIL_FROM,
         to: email,
         subject: 'Mã xác thực đặt lại mật khẩu - DacSanViet',
         html: `
