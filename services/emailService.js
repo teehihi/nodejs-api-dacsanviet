@@ -69,8 +69,11 @@ class EmailService {
   // Gửi OTP cho reset password
   async sendPasswordResetOTP(email, otpCode, fullName = '') {
     try {
+      const fromName = process.env.SMTP_FROM_NAME || 'DacSanViet';
+      const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+
       const mailOptions = {
-        from: process.env.EMAIL_FROM,
+        from: `"${fromName}" <${fromEmail}>`,
         to: email,
         subject: 'Mã xác thực đặt lại mật khẩu - DacSanViet',
         html: `
