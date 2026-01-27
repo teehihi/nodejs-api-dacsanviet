@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  register, 
-  login, 
-  logout, 
-  checkSession, 
+const {
+  register,
+  login,
+  logout,
+  checkSession,
   logoutAll,
   sendRegistrationOTP,
   verifyRegistrationOTP,
@@ -55,7 +55,8 @@ router.get('/', (req, res) => {
           email: 'string (required)',
           password: 'string (required, min 6 chars)',
           fullName: 'string (required)',
-          phoneNumber: 'string (optional)'
+          phoneNumber: 'string (optional)',
+          role: 'string (optional, default: USER, accepted: USER, STAFF, ADMIN)'
         }
       },
       sendRegistrationOTP: {
@@ -77,7 +78,8 @@ router.get('/', (req, res) => {
           username: 'string (required)',
           password: 'string (required, min 6 chars)',
           fullName: 'string (required)',
-          phoneNumber: 'string (optional)'
+          phoneNumber: 'string (optional)',
+          role: 'string (optional, default: USER, accepted: USER, STAFF, ADMIN)'
         }
       },
       sendPasswordResetOTP: {

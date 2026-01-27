@@ -9,13 +9,21 @@ const { validateEmail, validatePassword } = require('../utils/validation');
 // Register - Đăng ký tài khoản mới
 const register = async (req, res) => {
   try {
-    const { username, email, password, fullName, phoneNumber } = req.body;
+    const { username, email, password, fullName, phoneNumber, role } = req.body;
 
     // Validation
     if (!username || !email || !password || !fullName) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng điền đầy đủ thông tin bắt buộc (username, email, password, fullName)'
+      });
+    }
+
+    // Validate role if provided
+    if (role && !['USER', 'STAFF', 'ADMIN'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Quyền (role) không hợp lệ. Chỉ chấp nhận: USER, STAFF, ADMIN'
       });
     }
 
@@ -61,7 +69,8 @@ const register = async (req, res) => {
       email,
       password: hashedPassword,
       fullName,
-      phoneNumber: phoneNumber || null
+      phoneNumber: phoneNumber || null,
+      role: role || 'USER'
     });
 
     if (!newUser) {
@@ -394,13 +403,21 @@ const sendRegistrationOTP = async (req, res) => {
 // Verify OTP and complete registration
 const verifyRegistrationOTP = async (req, res) => {
   try {
-    const { email, otpCode, username, password, fullName, phoneNumber } = req.body;
+    const { email, otpCode, username, password, fullName, phoneNumber, role } = req.body;
 
     // Validation
     if (!email || !otpCode || !username || !password || !fullName) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng điền đầy đủ thông tin bắt buộc'
+      });
+    }
+
+    // Validate role if provided
+    if (role && !['USER', 'STAFF', 'ADMIN'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Quyền (role) không hợp lệ. Chỉ chấp nhận: USER, STAFF, ADMIN'
       });
     }
 
@@ -455,7 +472,8 @@ const verifyRegistrationOTP = async (req, res) => {
       email,
       password: hashedPassword,
       fullName,
-      phoneNumber: phoneNumber || null
+      phoneNumber: phoneNumber || null,
+      role: role || 'USER'
     });
 
     if (!newUser) {
