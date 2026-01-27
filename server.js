@@ -12,6 +12,9 @@ const User = require('./models/User');
 const Session = require('./models/Session');
 const OTP = require('./models/OTP');
 
+// Import rate limiter
+const { generalLimiter } = require('./middleware/rateLimiter');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -22,6 +25,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Trust proxy for getting real IP
 app.set('trust proxy', true);
+
+// Apply general rate limiter to all API routes
+app.use('/api/', generalLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);

@@ -4,50 +4,21 @@ const Session = require('../models/Session');
 const OTP = require('../models/OTP');
 const JWTService = require('../utils/jwt');
 const emailService = require('../services/emailService');
-const { validateEmail, validatePassword } = require('../utils/validation');
 
 // Register - Đăng ký tài khoản mới
 const register = async (req, res) => {
   try {
     const { username, email, password, fullName, phoneNumber, role } = req.body;
 
-    // Validation
-    if (!username || !email || !password || !fullName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng điền đầy đủ thông tin bắt buộc (username, email, password, fullName)'
-      });
-    }
-
-    // Validate role if provided
-    if (role && !['USER', 'STAFF', 'ADMIN'].includes(role)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Quyền (role) không hợp lệ. Chỉ chấp nhận: USER, STAFF, ADMIN'
-      });
-    }
-
-    // Validate email format
-    if (!validateEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email không hợp lệ'
-      });
-    }
-
-    // Validate password strength
-    if (!validatePassword(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu phải có ít nhất 6 ký tự'
-      });
-    }
-
     // Kiểm tra email đã tồn tại
     if (await User.emailExists(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Email đã được sử dụng'
+        errors: [{
+          resource: 'user',
+          field: 'email',
+          message: 'Email đã được sử dụng'
+        }]
       });
     }
 
@@ -55,7 +26,11 @@ const register = async (req, res) => {
     if (await User.usernameExists(username)) {
       return res.status(400).json({
         success: false,
-        message: 'Username đã được sử dụng'
+        errors: [{
+          resource: 'user',
+          field: 'username',
+          message: 'Username đã được sử dụng'
+        }]
       });
     }
 
@@ -107,14 +82,6 @@ const login = async (req, res) => {
 
     // Determine the identifier to use (support emailOrUsername, email, or username fields)
     const loginIdentifier = emailOrUsername || email || username;
-
-    // Validation
-    if (!loginIdentifier || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập email/username và mật khẩu'
-      });
-    }
 
     // Tìm user theo email hoặc username
     let user = null;
@@ -226,13 +193,6 @@ const checkSession = async (req, res) => {
   try {
     const { sessionId } = req.body;
 
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session ID không hợp lệ'
-      });
-    }
-
     const session = await Session.findBySessionId(sessionId);
 
     if (!session) {
@@ -278,13 +238,6 @@ const logoutAll = async (req, res) => {
   try {
     const { sessionId } = req.body;
 
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session ID không hợp lệ'
-      });
-    }
-
     const session = await Session.findBySessionId(sessionId);
     if (!session) {
       return res.status(401).json({
@@ -317,35 +270,15 @@ const sendRegistrationOTP = async (req, res) => {
     const { email, fullName, username } = req.body;
     console.log(`DEBUG: API received OTP request for email: "${email}", username: "${username}"`);
 
-    // Validation
-    if (!email || !username) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập email và tên đăng nhập'
-      });
-    }
-
-    // Validate email format
-    if (!validateEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email không hợp lệ'
-      });
-    }
-
-    // Validate username length
-    if (username.length < 3) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tên đăng nhập phải có ít nhất 3 ký tự'
-      });
-    }
-
     // Kiểm tra email đã tồn tại
     if (await User.emailExists(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Email đã được sử dụng'
+        errors: [{
+          resource: 'user',
+          field: 'email',
+          message: 'Email đã được sử dụng'
+        }]
       });
     }
 
@@ -353,7 +286,11 @@ const sendRegistrationOTP = async (req, res) => {
     if (await User.usernameExists(username)) {
       return res.status(400).json({
         success: false,
-        message: 'Tên đăng nhập đã được sử dụng'
+        errors: [{
+          resource: 'user',
+          field: 'username',
+          message: 'Username đã được sử dụng'
+        }]
       });
     }
 
@@ -421,44 +358,16 @@ const verifyRegistrationOTP = async (req, res) => {
   try {
     const { email, otpCode, username, password, fullName, phoneNumber, role } = req.body;
 
-    // Validation
-    if (!email || !otpCode || !username || !password || !fullName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng điền đầy đủ thông tin bắt buộc'
-      });
-    }
-
-    // Validate role if provided
-    if (role && !['USER', 'STAFF', 'ADMIN'].includes(role)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Quyền (role) không hợp lệ. Chỉ chấp nhận: USER, STAFF, ADMIN'
-      });
-    }
-
-    // Validate email format
-    if (!validateEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email không hợp lệ'
-      });
-    }
-
-    // Validate password strength
-    if (!validatePassword(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu phải có ít nhất 6 ký tự'
-      });
-    }
-
     // Kiểm tra OTP hợp lệ
     const validOTP = await OTP.findValidOTP(email, otpCode, 'registration');
     if (!validOTP) {
       return res.status(400).json({
         success: false,
-        message: 'Mã OTP không hợp lệ hoặc đã hết hạn'
+        errors: [{
+          resource: 'otp',
+          field: 'otpCode',
+          message: 'Mã OTP không hợp lệ hoặc đã hết hạn'
+        }]
       });
     }
 
@@ -466,7 +375,11 @@ const verifyRegistrationOTP = async (req, res) => {
     if (await User.emailExists(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Email đã được sử dụng'
+        errors: [{
+          resource: 'user',
+          field: 'email',
+          message: 'Email đã được sử dụng'
+        }]
       });
     }
 
@@ -474,7 +387,11 @@ const verifyRegistrationOTP = async (req, res) => {
     if (await User.usernameExists(username)) {
       return res.status(400).json({
         success: false,
-        message: 'Username đã được sử dụng'
+        errors: [{
+          resource: 'user',
+          field: 'username',
+          message: 'Username đã được sử dụng'
+        }]
       });
     }
 
@@ -540,22 +457,6 @@ const verifyRegistrationOTP = async (req, res) => {
 const sendPasswordResetOTP = async (req, res) => {
   try {
     const { email } = req.body;
-
-    // Validation
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập email'
-      });
-    }
-
-    // Validate email format
-    if (!validateEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email không hợp lệ'
-      });
-    }
 
     // Kiểm tra email có tồn tại không
     const user = await User.findByEmail(email);
@@ -638,29 +539,6 @@ const resetPasswordWithOTP = async (req, res) => {
   try {
     const { email, otpCode, newPassword } = req.body;
 
-    // Validation
-    if (!email || !otpCode || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng điền đầy đủ thông tin'
-      });
-    }
-
-    // Validate email format
-    if (!validateEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email không hợp lệ'
-      });
-    }
-
-    // Validate password strength
-    if (!validatePassword(newPassword)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu phải có ít nhất 6 ký tự'
-      });
-    }
 
     // Kiểm tra OTP hợp lệ
     const validOTP = await OTP.findValidOTP(email, otpCode, 'password_reset');

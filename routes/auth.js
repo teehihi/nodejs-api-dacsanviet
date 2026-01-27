@@ -12,32 +12,52 @@ const {
   resetPasswordWithOTP
 } = require('../controllers/authController');
 
+// Import validators
+const {
+  registrationValidation,
+  sendRegistrationOTPValidation,
+  verifyRegistrationOTPValidation,
+  loginValidation,
+  sendPasswordResetOTPValidation,
+  resetPasswordWithOTPValidation,
+  sessionValidation
+} = require('../middleware/validators');
+
+// Import rate limiters
+const {
+  authLimiter,
+  otpLimiter,
+  loginLimiter,
+  passwordResetLimiter,
+  readLimiter
+} = require('../middleware/rateLimiter');
+
 // POST /api/auth/register - Đăng ký tài khoản (legacy - không dùng OTP)
-router.post('/register', register);
+router.post('/register', authLimiter, registrationValidation, register);
 
 // POST /api/auth/send-registration-otp - Gửi OTP cho đăng ký
-router.post('/send-registration-otp', sendRegistrationOTP);
+router.post('/send-registration-otp', otpLimiter, sendRegistrationOTPValidation, sendRegistrationOTP);
 
 // POST /api/auth/verify-registration-otp - Xác thực OTP và hoàn tất đăng ký
-router.post('/verify-registration-otp', verifyRegistrationOTP);
+router.post('/verify-registration-otp', authLimiter, verifyRegistrationOTPValidation, verifyRegistrationOTP);
 
 // POST /api/auth/send-password-reset-otp - Gửi OTP cho reset password
-router.post('/send-password-reset-otp', sendPasswordResetOTP);
+router.post('/send-password-reset-otp', passwordResetLimiter, sendPasswordResetOTPValidation, sendPasswordResetOTP);
 
 // POST /api/auth/reset-password-otp - Reset password với OTP
-router.post('/reset-password-otp', resetPasswordWithOTP);
+router.post('/reset-password-otp', passwordResetLimiter, resetPasswordWithOTPValidation, resetPasswordWithOTP);
 
 // POST /api/auth/login - Đăng nhập với JWT
-router.post('/login', login);
+router.post('/login', loginLimiter, loginValidation, login);
 
 // POST /api/auth/logout - Đăng xuất
 router.post('/logout', logout);
 
 // POST /api/auth/logout-all - Đăng xuất tất cả thiết bị
-router.post('/logout-all', logoutAll);
+router.post('/logout-all', sessionValidation, logoutAll);
 
 // POST /api/auth/check-session - Kiểm tra phiên đăng nhập
-router.post('/check-session', checkSession);
+router.post('/check-session', readLimiter, sessionValidation, checkSession);
 
 // GET /api/auth - Thông tin về auth endpoints
 router.get('/', (req, res) => {
