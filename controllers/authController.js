@@ -314,14 +314,14 @@ const logoutAll = async (req, res) => {
 // Send OTP for registration
 const sendRegistrationOTP = async (req, res) => {
   try {
-    const { email, fullName } = req.body;
-    console.log(`DEBUG: API received OTP request for email: "${email}"`);
+    const { email, fullName, username } = req.body;
+    console.log(`DEBUG: API received OTP request for email: "${email}", username: "${username}"`);
 
     // Validation
-    if (!email) {
+    if (!email || !username) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng nhập email'
+        message: 'Vui lòng nhập email và tên đăng nhập'
       });
     }
 
@@ -333,11 +333,27 @@ const sendRegistrationOTP = async (req, res) => {
       });
     }
 
+    // Validate username length
+    if (username.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tên đăng nhập phải có ít nhất 3 ký tự'
+      });
+    }
+
     // Kiểm tra email đã tồn tại
     if (await User.emailExists(email)) {
       return res.status(400).json({
         success: false,
         message: 'Email đã được sử dụng'
+      });
+    }
+
+    // Kiểm tra username đã tồn tại
+    if (await User.usernameExists(username)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tên đăng nhập đã được sử dụng'
       });
     }
 
