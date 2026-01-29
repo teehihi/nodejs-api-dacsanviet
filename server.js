@@ -24,7 +24,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Trust proxy for getting real IP
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // Apply general rate limiter to all API routes
 app.use('/api/', generalLimiter);
