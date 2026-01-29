@@ -10,7 +10,7 @@ const fs = require('fs').promises;
 const getProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
@@ -119,8 +119,10 @@ const uploadAvatar = async (req, res) => {
 
     // Delete old avatar file if exists
     if (oldAvatarUrl && oldAvatarUrl !== avatarUrl) {
-      const oldAvatarPath = path.join(__dirname, '..', 'public', oldAvatarUrl);
-      await fs.unlink(oldAvatarPath).catch(err => console.log('Old avatar not found or already deleted'));
+      const relativePath = oldAvatarUrl.startsWith('/') ? oldAvatarUrl.substring(1) : oldAvatarUrl;
+      const oldAvatarPath = path.join(__dirname, '..', 'public', relativePath);
+      console.log('Attempting to delete old avatar:', oldAvatarPath);
+      await fs.unlink(oldAvatarPath).catch(err => console.log('Old avatar deletion failed or file not found:', err.message));
     }
 
     const userResponse = User.sanitizeUser(updatedUser);
