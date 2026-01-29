@@ -62,19 +62,19 @@ const ensureApiTables = async () => {
           INDEX idx_role (role)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `;
-      
+
       await pool.execute(createUsersTable);
       console.log('Users table created');
     } else {
       console.log('Users table already exists');
-      
+
       // Lấy thông tin về cột id của bảng users
       const [userColumns] = await pool.execute(`
         SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'id'
       `, [dbConfig.database]);
-      
+
       if (userColumns.length > 0) {
         console.log(`Users table ID column type: ${userColumns[0].COLUMN_TYPE}`);
       }
@@ -119,7 +119,7 @@ const ensureApiTables = async () => {
 
       await pool.execute(createSessionsTable);
       console.log('API Sessions table created');
-      
+
       // Thêm foreign key constraint sau khi tạo bảng
       try {
         await pool.execute(`
@@ -165,6 +165,22 @@ const ensureApiTables = async () => {
       console.log('OTP Codes table created');
     } else {
       console.log('OTP Codes table already exists');
+
+      // Check if metadata column exists
+      const [otpColumns] = await pool.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'otp_codes' AND COLUMN_NAME = 'metadata'
+      `, [dbConfig.database]);
+
+      if (otpColumns.length === 0) {
+        try {
+          await pool.execute('ALTER TABLE otp_codes ADD COLUMN metadata JSON NULL');
+          console.log('Added metadata column to otp_codes');
+        } catch (alterError) {
+          console.error('Error adding metadata column:', alterError.message);
+        }
+      }
     }
 
     return true;
@@ -178,18 +194,18 @@ const ensureApiTables = async () => {
 const createDefaultAdmin = async () => {
   try {
     const bcrypt = require('bcryptjs');
-    
+
     // Kiểm tra admin đã tồn tại chưa
     const [rows] = await pool.execute(
       'SELECT id FROM users WHERE email = ? OR role = ? LIMIT 1',
       ['admin@dacsanviet.com', 'ADMIN']
     );
-    
+
     if (rows.length > 0) {
       console.log('Admin user already exists');
       return true;
     }
-    
+
     // Lấy cấu trúc bảng users để tạo admin phù hợp
     const [columns] = await pool.execute(`
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
@@ -197,13 +213,13 @@ const createDefaultAdmin = async () => {
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'
       ORDER BY ORDINAL_POSITION
     `, [dbConfig.database]);
-    
+
     const columnNames = columns.map(col => col.COLUMN_NAME);
     console.log('Available user columns:', columnNames.join(', '));
-    
+
     // Tạo admin mới với các cột có sẵn
     const hashedPassword = await bcrypt.hash('admin123', 10);
-    
+
     // Chuẩn bị dữ liệu admin dựa trên cấu trúc bảng
     const adminData = {
       username: 'admin',
@@ -213,19 +229,19 @@ const createDefaultAdmin = async () => {
       phone_number: '0123456789',
       role: 'ADMIN'
     };
-    
+
     // Chỉ sử dụng các cột tồn tại
     const availableFields = Object.keys(adminData).filter(field => columnNames.includes(field));
     const values = availableFields.map(field => adminData[field]);
     const placeholders = availableFields.map(() => '?').join(', ');
-    
+
     const insertQuery = `
       INSERT INTO users (${availableFields.join(', ')})
       VALUES (${placeholders})
     `;
-    
+
     await pool.execute(insertQuery, values);
-    
+
     console.log('Default admin user created');
     console.log('Email: admin@dacsanviet.com');
     console.log('Password: admin123');
@@ -281,23 +297,23 @@ const getDatabaseInfo = async () => {
 // Initialize database
 const initializeDatabase = async () => {
   console.log('Connecting to existing DacSanViet database...');
-  
+
   const connected = await testConnection();
   if (!connected) return false;
-  
+
   const tablesEnsured = await ensureApiTables();
   if (!tablesEnsured) return false;
-  
+
   const adminCreated = await createDefaultAdmin();
   if (!adminCreated) return false;
-  
+
   // Hiển thị thông tin database
   const dbInfo = await getDatabaseInfo();
   if (dbInfo) {
     console.log(`Database has ${dbInfo.totalTables} tables`);
     console.log(`Users table has ${dbInfo.usersTableColumns.length} columns`);
   }
-  
+
   console.log('Database connection established!');
   return true;
 };
@@ -309,7 +325,7 @@ const cleanupExpiredSessions = async () => {
     const [sessionResult] = await pool.execute(
       'DELETE FROM api_sessions WHERE expires_at < NOW() OR is_active = FALSE'
     );
-    
+
     if (sessionResult.affectedRows > 0) {
       console.log(`Cleaned up ${sessionResult.affectedRows} expired sessions`);
     }
@@ -318,7 +334,7 @@ const cleanupExpiredSessions = async () => {
     const [otpResult] = await pool.execute(
       'DELETE FROM otp_codes WHERE expires_at < NOW() OR (is_used = TRUE AND used_at < DATE_SUB(NOW(), INTERVAL 1 DAY))'
     );
-    
+
     if (otpResult.affectedRows > 0) {
       console.log(`Cleaned up ${otpResult.affectedRows} expired OTPs`);
     }

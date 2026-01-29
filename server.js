@@ -25,7 +25,8 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Trust proxy for getting real IP
-app.set('trust proxy', true);
+// Trust proxy for getting real IP (set to 1 to trust only the first hop, fixing rate limit warning)
+app.set('trust proxy', 1);
 
 // Serve static files (avatars)
 app.use('/uploads', express.static('public/uploads'));
@@ -42,7 +43,7 @@ app.get('/', async (req, res) => {
     const userStats = await User.getStats();
     const sessionStats = await Session.getStats();
     const otpStats = await OTP.getStats();
-    
+
     res.json({
       message: 'Group API Server - JWT + OTP Version',
       version: '3.0.0',
@@ -131,7 +132,7 @@ app.get('/api/health', async (req, res) => {
   try {
     // Test database connection
     await User.getStats();
-    
+
     res.json({
       success: true,
       message: 'API is healthy',
@@ -186,14 +187,14 @@ app.use((req, res) => {
 const startServer = async () => {
   try {
     console.log('Starting Group API Server (MySQL Version)...');
-    
+
     // Initialize database
     const dbInitialized = await initializeDatabase();
     if (!dbInitialized) {
       console.error('Failed to initialize database');
       process.exit(1);
     }
-    
+
     // Start server
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
