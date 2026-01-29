@@ -149,6 +149,12 @@ class User {
         } else if (key === 'phoneNumber') {
           fields.push('phone_number = ?');
           values.push(updateData[key]);
+        } else if (key === 'avatarUrl') {
+          fields.push('avatar_url = ?');
+          values.push(updateData[key]);
+        } else if (key === 'email') {
+          fields.push('email = ?');
+          values.push(updateData[key]);
         } else if (key === 'role') {
           fields.push('role = ?');
           values.push(updateData[key]);
@@ -267,6 +273,7 @@ class User {
       password: dbUser.password, // Include for authentication, remove in responses
       fullName: dbUser.full_name,
       phoneNumber: dbUser.phone_number,
+      avatarUrl: dbUser.avatar_url,
       role: dbUser.role,
       isActive: dbUser.is_active && (dbUser.is_active[0] === 1 || dbUser.is_active === 1),
       createdAt: dbUser.created_at,

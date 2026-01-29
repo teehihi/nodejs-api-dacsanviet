@@ -8,6 +8,7 @@ const { initializeDatabase, getDatabaseInfo } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const sessionRoutes = require('./routes/sessions');
+const profileRoutes = require('./routes/profile');
 const User = require('./models/User');
 const Session = require('./models/Session');
 const OTP = require('./models/OTP');
@@ -26,13 +27,14 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Trust proxy for getting real IP
 app.set('trust proxy', 1);
 
-// Apply general rate limiter to all API routes
-app.use('/api/', generalLimiter);
+// Serve static files (avatars)
+app.use('/uploads', express.static('public/uploads'));
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {
