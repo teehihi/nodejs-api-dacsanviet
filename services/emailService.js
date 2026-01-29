@@ -180,6 +180,118 @@ class EmailService {
     }
   }
 
+  // Gửi OTP cho cập nhật email
+  async sendEmailUpdateOTP(email, otpCode, fullName = '') {
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: 'Mã xác thực cập nhật email - DacSanViet',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #2c5aa0; margin: 0;">DacSanViet</h1>
+              <p style="color: #666; margin: 5px 0;">Đặc sản Việt Nam</p>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
+              <h2 style="color: #333; margin-bottom: 20px;">Xác thực email mới</h2>
+              
+              ${fullName ? `<p style="color: #666; margin-bottom: 20px;">Xin chào <strong>${fullName}</strong>,</p>` : ''}
+              
+              <p style="color: #666; margin-bottom: 30px;">
+                Chúng tôi nhận được yêu cầu cập nhật email cho tài khoản của bạn. Vui lòng sử dụng mã xác thực bên dưới để xác nhận email mới:
+              </p>
+              
+              <div style="background: #fff; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px dashed #17a2b8;">
+                <h1 style="color: #17a2b8; font-size: 32px; margin: 0; letter-spacing: 5px;">${otpCode}</h1>
+              </div>
+              
+              <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                Mã xác thực có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.
+              </p>
+              
+              <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                <p style="color: #856404; font-size: 14px; margin: 0;">
+                  <strong>Lưu ý:</strong> Nếu bạn không yêu cầu thay đổi email, vui lòng bỏ qua email này và kiểm tra bảo mật tài khoản.
+                </p>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+              <p style="color: #999; font-size: 12px;">
+                © 2026 DacSanViet. Tất cả quyền được bảo lưu.
+              </p>
+            </div>
+          </div>
+        `
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('Email update OTP sent successfully:', result.messageId);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error('Error sending email update OTP:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Gửi OTP cho cập nhật số điện thoại
+  async sendPhoneUpdateOTP(email, otpCode, fullName = '', newPhone = '') {
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: 'Mã xác thực cập nhật số điện thoại - DacSanViet',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #2c5aa0; margin: 0;">DacSanViet</h1>
+              <p style="color: #666; margin: 5px 0;">Đặc sản Việt Nam</p>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
+              <h2 style="color: #333; margin-bottom: 20px;">Xác thực số điện thoại mới</h2>
+              
+              ${fullName ? `<p style="color: #666; margin-bottom: 20px;">Xin chào <strong>${fullName}</strong>,</p>` : ''}
+              
+              <p style="color: #666; margin-bottom: 30px;">
+                Chúng tôi nhận được yêu cầu cập nhật số điện thoại cho tài khoản của bạn${newPhone ? ` thành <strong>${newPhone}</strong>` : ''}. Vui lòng sử dụng mã xác thực bên dưới:
+              </p>
+              
+              <div style="background: #fff; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px dashed #28a745;">
+                <h1 style="color: #28a745; font-size: 32px; margin: 0; letter-spacing: 5px;">${otpCode}</h1>
+              </div>
+              
+              <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                Mã xác thực có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.
+              </p>
+              
+              <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                <p style="color: #856404; font-size: 14px; margin: 0;">
+                  <strong>Lưu ý:</strong> Nếu bạn không yêu cầu thay đổi số điện thoại, vui lòng bỏ qua email này và kiểm tra bảo mật tài khoản.
+                </p>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+              <p style="color: #999; font-size: 12px;">
+                © 2026 DacSanViet. Tất cả quyền được bảo lưu.
+              </p>
+            </div>
+          </div>
+        `
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('Phone update OTP sent successfully:', result.messageId);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error('Error sending phone update OTP:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Test kết nối email
   async testConnection() {
     try {
