@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đặc Sản Việt - Tinh Hoa Quà Việt</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">
+                <i class="fa-solid fa-leaf"></i> DacSanViet
+            </div>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Tìm kiếm đặc sản...">
+                <button id="searchBtn"><i class="fa-solid fa-search"></i></button>
+            </div>
+            <div class="user-actions">
+                <a href="#" class="btn-icon"><i class="fa-regular fa-heart"></i></a>
+                <a href="#" class="btn-icon"><i class="fa-solid fa-cart-shopping"></i></a>
+                <a href="#" class="btn-primary">Đăng nhập</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <aside class="sidebar">
+            <div class="filter-section">
+                <h3>Danh mục</h3>
+                <ul id="categoryList">
+                    <li class="active" data-cat="All">Tất cả</li>
+                    <!-- Categories will be injected here -->
+                </ul>
+            </div>
+
+            <div class="filter-section">
+                <h3>Khoảng giá</h3>
+                <div class="price-range">
+                    <div class="range-inputs">
+                        <input type="number" id="minPrice" placeholder="Từ" min="0">
+                        <span>-</span>
+                        <input type="number" id="maxPrice" placeholder="Đến" min="0">
+                    </div>
+                    <button id="applyPriceBtn">Áp dụng</button>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <h3>Sắp xếp</h3>
+                <select id="sortSelect">
+                    <option value="newest">Mới nhất</option>
+                    <option value="popular">Bán chạy nhất</option>
+                    <option value="price_asc">Giá tăng dần</option>
+                    <option value="price_desc">Giá giảm dần</option>
+                    <option value="rating">Đánh giá cao</option>
+                </select>
+            </div>
+        </aside>
+
+        <section class="product-area">
+            <div class="results-header">
+                <h2 id="resultsTitle">Tất cả sản phẩm</h2>
+                <span id="resultsCount">Đang tải...</span>
+            </div>
+            
+            <div id="productGrid" class="grid">
+                <!-- Products will be injected here -->
+            </div>
+
+            <div class="pagination" id="pagination">
+                <!-- Pagination buttons -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 DacSanViet. Tinh hoa ẩm thực Việt Nam.</p>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

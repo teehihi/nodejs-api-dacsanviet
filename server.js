@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const sessionRoutes = require('./routes/sessions');
 const profileRoutes = require('./routes/profile');
+const productRoutes = require('./routes/products');
 const User = require('./models/User');
 const Session = require('./models/Session');
 const OTP = require('./models/OTP');
@@ -28,14 +29,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Trust proxy for getting real IP (set to 1 to trust only the first hop, fixing rate limit warning)
 app.set('trust proxy', 1);
 
-// Serve static files (avatars)
-app.use('/uploads', express.static('public/uploads'));
+// Serve static files
+app.use(express.static('public'));
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/products', productRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {
@@ -61,6 +63,7 @@ app.get('/', async (req, res) => {
         auth: 'GET /api/auth',
         users: 'GET /api/users',
         sessions: 'GET /api/sessions',
+        products: 'GET /api/products',
         register: 'POST /api/auth/register',
         registerWithOTP: 'POST /api/auth/send-registration-otp + POST /api/auth/verify-registration-otp',
         login: 'POST /api/auth/login',

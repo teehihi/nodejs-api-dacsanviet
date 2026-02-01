@@ -183,6 +183,8 @@ const ensureApiTables = async () => {
       }
     }
 
+
+
     return true;
   } catch (error) {
     console.error('Error ensuring API tables:', error.message);
@@ -301,8 +303,12 @@ const initializeDatabase = async () => {
   const connected = await testConnection();
   if (!connected) return false;
 
+
+
   const tablesEnsured = await ensureApiTables();
   if (!tablesEnsured) return false;
+
+
 
   const adminCreated = await createDefaultAdmin();
   if (!adminCreated) return false;
