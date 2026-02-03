@@ -4,11 +4,19 @@ class Product {
     // Tìm kiếm và lọc sản phẩm
     static async findAll({ q, minPrice, maxPrice, category, sort, limit = 20, offset = 0 }) {
         try {
+            console.log('🔍 Product.findAll called with:', { q, minPrice, maxPrice, category, sort, limit, offset });
+            
+            // Convert bit(1) to boolean for easier handling
             let query = `
-        SELECT p.*, c.name as category_name
+        SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+               p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+               p.created_at, p.updated_at, p.category_id, p.supplier_id,
+               CAST(p.is_active AS UNSIGNED) as is_active,
+               CAST(p.is_featured AS UNSIGNED) as is_featured,
+               c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.is_active = 1
+        WHERE CAST(p.is_active AS UNSIGNED) = 1
       `;
             const params = [];
 
@@ -20,11 +28,11 @@ class Product {
             }
 
             // Filter by price range
-            if (minPrice) {
+            if (minPrice !== undefined && minPrice !== null) {
                 query += ` AND p.price >= ?`;
                 params.push(parseFloat(minPrice));
             }
-            if (maxPrice) {
+            if (maxPrice !== undefined && maxPrice !== null) {
                 query += ` AND p.price <= ?`;
                 params.push(parseFloat(maxPrice));
             }
@@ -54,12 +62,19 @@ class Product {
                 query += ` ORDER BY p.created_at DESC`;
             }
 
-            // Pagination
-            query += ` LIMIT ? OFFSET ?`;
-            params.push(parseInt(limit), parseInt(offset));
+            // Pagination - use string interpolation to avoid MySQL2 parameter issues with LIMIT/OFFSET
+            const limitValue = parseInt(limit) || 20;
+            const offsetValue = parseInt(offset) || 0;
+            query += ` LIMIT ${limitValue} OFFSET ${offsetValue}`;
+
+            console.log('📝 Final query:', query);
+            console.log('📝 Query params:', params);
 
             const [rows] = await pool.execute(query, params);
-            return rows.map(Product.formatProduct);
+            const results = rows.map(Product.formatProduct);
+            
+            console.log('✅ Query successful, results:', results.length);
+            return results;
         } catch (error) {
             console.error('Error finding products:', error);
             throw error;
@@ -73,7 +88,7 @@ class Product {
         SELECT COUNT(*) as count
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.is_active = 1
+        WHERE CAST(p.is_active AS UNSIGNED) = 1
       `;
             const params = [];
 
@@ -107,10 +122,15 @@ class Product {
     static async findById(id) {
         try {
             const [rows] = await pool.execute(`
-        SELECT p.*, c.name as category_name
+        SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+               p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+               p.created_at, p.updated_at, p.category_id, p.supplier_id,
+               CAST(p.is_active AS UNSIGNED) as is_active,
+               CAST(p.is_featured AS UNSIGNED) as is_featured,
+               c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.id = ? AND p.is_active = 1
+        WHERE p.id = ? AND CAST(p.is_active AS UNSIGNED) = 1
       `, [id]);
             return rows.length > 0 ? Product.formatProduct(rows[0]) : null;
         } catch (error) {
@@ -123,7 +143,7 @@ class Product {
     static async getAllCategories() {
         try {
             const [rows] = await pool.execute(
-                'SELECT DISTINCT name FROM categories ORDER BY name'
+                'SELECT DISTINCT name FROM categories WHERE CAST(is_active AS UNSIGNED) = 1 ORDER BY name'
             );
             return rows.map(row => row.name);
         } catch (error) {
@@ -138,14 +158,14 @@ class Product {
         return {
             id: dbProduct.id,
             name: dbProduct.name,
-            description: dbProduct.description,
+            description: dbProduct.description || dbProduct.short_description || '',
             price: parseFloat(dbProduct.price),
             originalPrice: null, // Schema doesn't have original_price
             category: dbProduct.category_name || 'Uncategorized',
-            imageUrl: dbProduct.image_url,
-            rating: 5.0, // Schema doesn't have rating yet, default 5
+            imageUrl: dbProduct.image_url || '',
+            rating: 4.5, // Schema doesn't have rating yet, default 4.5
             soldCount: 0, // Schema doesn't have sold_count
-            isActive: dbProduct.is_active === 1 || (dbProduct.is_active && dbProduct.is_active[0] === 1),
+            isActive: dbProduct.is_active === 1,
             createdAt: dbProduct.created_at
         };
     }

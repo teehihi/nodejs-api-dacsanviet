@@ -4,19 +4,25 @@ const productController = {
     // Lấy danh sách sản phẩm với bộ lọc
     getProducts: async (req, res) => {
         try {
+            console.log('📥 Request query params:', req.query);
+            
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 12;
             const offset = (page - 1) * limit;
 
+            console.log('📊 Parsed params:', { page, limit, offset });
+
             const filters = {
                 q: req.query.q,
-                minPrice: req.query.minPrice,
-                maxPrice: req.query.maxPrice,
+                minPrice: req.query.minPrice ? parseFloat(req.query.minPrice) : undefined,
+                maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice) : undefined,
                 category: req.query.category,
                 sort: req.query.sort,
                 limit,
                 offset
             };
+
+            console.log('🔍 Filters:', filters);
 
             const products = await Product.findAll(filters);
             const totalItems = await Product.count(filters);
