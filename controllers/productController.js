@@ -91,6 +91,62 @@ const productController = {
                 error: error.message
             });
         }
+    },
+
+    // Lấy danh sách danh mục có sản phẩm
+    getCategoriesWithProducts: async (req, res) => {
+        try {
+            const categories = await Product.getCategoriesWithProducts();
+            res.json({
+                success: true,
+                data: categories
+            });
+        } catch (error) {
+            console.error('Get categories with products error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi khi lấy danh sách danh mục có sản phẩm',
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy sản phẩm bán chạy nhất
+    getBestSellers: async (req, res) => {
+        try {
+            const limit = parseInt(req.query.limit) || 10;
+            const products = await Product.getBestSellers(limit);
+            res.json({
+                success: true,
+                data: products
+            });
+        } catch (error) {
+            console.error('Get best sellers error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi khi lấy sản phẩm bán chạy',
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy sản phẩm giảm giá
+    getDiscountedProducts: async (req, res) => {
+        try {
+            const limit = parseInt(req.query.limit) || 20;
+            const products = await Product.getDiscountedProducts(limit);
+            res.json({
+                success: true,
+                data: products
+            });
+        } catch (error) {
+            console.error('Get discounted products error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi khi lấy sản phẩm giảm giá',
+                error: error.message
+            });
+        }
     }
 };
 

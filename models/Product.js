@@ -10,7 +10,7 @@ class Product {
             let query = `
         SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
                p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
-               p.created_at, p.updated_at, p.category_id, p.supplier_id,
+               p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                CAST(p.is_active AS UNSIGNED) as is_active,
                CAST(p.is_featured AS UNSIGNED) as is_featured,
                c.name as category_name
@@ -124,7 +124,7 @@ class Product {
             const [rows] = await pool.execute(`
         SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
                p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
-               p.created_at, p.updated_at, p.category_id, p.supplier_id,
+               p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                CAST(p.is_active AS UNSIGNED) as is_active,
                CAST(p.is_featured AS UNSIGNED) as is_featured,
                c.name as category_name
@@ -139,15 +139,80 @@ class Product {
         }
     }
 
-    // Lấy danh sách danh mục
-    static async getAllCategories() {
+    // Lấy danh sách danh mục có sản phẩm
+    static async getCategoriesWithProducts() {
         try {
-            const [rows] = await pool.execute(
-                'SELECT DISTINCT name FROM categories WHERE CAST(is_active AS UNSIGNED) = 1 ORDER BY name'
-            );
-            return rows.map(row => row.name);
+            const [rows] = await pool.execute(`
+                SELECT DISTINCT c.name, COUNT(p.id) as product_count
+                FROM categories c
+                INNER JOIN products p ON c.id = p.category_id
+                WHERE CAST(c.is_active AS UNSIGNED) = 1 
+                AND CAST(p.is_active AS UNSIGNED) = 1
+                GROUP BY c.id, c.name
+                HAVING product_count > 0
+                ORDER BY c.name
+            `);
+            return rows.map(row => ({
+                name: row.name,
+                productCount: row.product_count
+            }));
         } catch (error) {
-            console.error('Error getting categories:', error);
+            console.error('Error getting categories with products:', error);
+            throw error;
+        }
+    }
+
+    // Lấy sản phẩm bán chạy nhất
+    static async getBestSellers(limit = 10) {
+        try {
+            const [rows] = await pool.execute(`
+                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                       p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+                       p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
+                       CAST(p.is_active AS UNSIGNED) as is_active,
+                       CAST(p.is_featured AS UNSIGNED) as is_featured,
+                       c.name as category_name
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE CAST(p.is_active AS UNSIGNED) = 1
+                ORDER BY p.sold_quantity DESC, p.created_at DESC
+                LIMIT ${parseInt(limit)}
+            `);
+            return rows.map(Product.formatProduct);
+        } catch (error) {
+            console.error('Error getting best sellers:', error);
+            throw error;
+        }
+    }
+
+    // Lấy sản phẩm giảm giá (sắp xếp theo % giảm giá)
+    static async getDiscountedProducts(limit = 20) {
+        try {
+            // Tạm thời sử dụng logic giảm giá 20% cho tất cả sản phẩm
+            // Trong tương lai có thể thêm cột discount_percentage vào database
+            const [rows] = await pool.execute(`
+                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                       p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+                       p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
+                       CAST(p.is_active AS UNSIGNED) as is_active,
+                       CAST(p.is_featured AS UNSIGNED) as is_featured,
+                       c.name as category_name,
+                       20 as discount_percentage
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE CAST(p.is_active AS UNSIGNED) = 1
+                ORDER BY p.price DESC, p.created_at DESC
+                LIMIT ${parseInt(limit)}
+            `);
+            return rows.map(row => {
+                const product = Product.formatProduct(row);
+                product.discountPercentage = row.discount_percentage;
+                product.originalPrice = product.price;
+                product.price = product.price * (1 - row.discount_percentage / 100);
+                return product;
+            });
+        } catch (error) {
+            console.error('Error getting discounted products:', error);
             throw error;
         }
     }
@@ -164,10 +229,23 @@ class Product {
             category: dbProduct.category_name || 'Uncategorized',
             imageUrl: dbProduct.image_url || '',
             rating: 4.5, // Schema doesn't have rating yet, default 4.5
-            soldCount: 0, // Schema doesn't have sold_count
+            soldCount: dbProduct.sold_quantity || 0,
             isActive: dbProduct.is_active === 1,
             createdAt: dbProduct.created_at
         };
+    }
+
+    // Lấy danh sách danh mục (legacy method)
+    static async getAllCategories() {
+        try {
+            const [rows] = await pool.execute(
+                'SELECT DISTINCT name FROM categories WHERE CAST(is_active AS UNSIGNED) = 1 ORDER BY name'
+            );
+            return rows.map(row => row.name);
+        } catch (error) {
+            console.error('Error getting categories:', error);
+            throw error;
+        }
     }
 }
 
