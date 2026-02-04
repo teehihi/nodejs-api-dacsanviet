@@ -14,9 +14,9 @@ class Product {
 
             // Filter by search keyword
             if (q) {
-                query += ` AND (p.name LIKE ? OR p.description LIKE ?)`;
+                query += ` AND p.name LIKE ?`;
                 const searchTerm = `%${q}%`;
-                params.push(searchTerm, searchTerm);
+                params.push(searchTerm);
             }
 
             // Filter by price range
@@ -31,8 +31,12 @@ class Product {
 
             // Filter by category
             if (category && category !== 'All') {
-                query += ` AND c.name = ?`;
-                params.push(category);
+                const cats = category.split(',').map(c => c.trim()).filter(c => c);
+                if (cats.length > 0) {
+                    const placeholders = cats.map(() => '?').join(',');
+                    query += ` AND p.category_id IN (${placeholders})`;
+                    params.push(...cats);
+                }
             }
 
             // Sorting
@@ -57,8 +61,7 @@ class Product {
             // Pagination
             query += ` LIMIT ? OFFSET ?`;
             params.push(parseInt(limit), parseInt(offset));
-
-            const [rows] = await pool.execute(query, params);
+            const [rows] = await pool.query(query, params);
             return rows.map(Product.formatProduct);
         } catch (error) {
             console.error('Error finding products:', error);
@@ -78,9 +81,9 @@ class Product {
             const params = [];
 
             if (q) {
-                query += ` AND (p.name LIKE ? OR p.description LIKE ?)`;
+                query += ` AND p.name LIKE ?`;
                 const searchTerm = `%${q}%`;
-                params.push(searchTerm, searchTerm);
+                params.push(searchTerm);
             }
             if (minPrice) {
                 query += ` AND p.price >= ?`;
@@ -91,11 +94,15 @@ class Product {
                 params.push(parseFloat(maxPrice));
             }
             if (category && category !== 'All') {
-                query += ` AND c.name = ?`;
-                params.push(category);
+                const ids = category.split(',').map(id => id.trim()).filter(id => id);
+                if (ids.length > 0) {
+                    const placeholders = ids.map(() => '?').join(',');
+                    query += ` AND p.category_id IN (${placeholders})`;
+                    params.push(...ids);
+                }
             }
 
-            const [rows] = await pool.execute(query, params);
+            const [rows] = await pool.query(query, params);
             return rows[0].count;
         } catch (error) {
             console.error('Error counting products:', error);
@@ -123,9 +130,9 @@ class Product {
     static async getAllCategories() {
         try {
             const [rows] = await pool.execute(
-                'SELECT DISTINCT name FROM categories ORDER BY name'
+                'SELECT id, name FROM categories ORDER BY name'
             );
-            return rows.map(row => row.name);
+            return rows;
         } catch (error) {
             console.error('Error getting categories:', error);
             throw error;

@@ -37,7 +37,7 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Update basic profile info (fullName, phoneNumber)
+ // Update basic profile info (fullName, phoneNumber)
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
