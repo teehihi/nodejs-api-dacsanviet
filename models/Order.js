@@ -17,43 +17,53 @@ class Order {
         cancelDeadline,
       } = orderData;
 
-      // Insert order
+      // Create full address string
+      const shippingAddressText = `${shippingAddress.address}, ${shippingAddress.ward}, ${shippingAddress.district}, ${shippingAddress.city}`;
+      
+      // Get current date for order_date
+      const orderDate = new Date();
+
+      // Insert order directly with shipping info
       const [orderResult] = await connection.query(
         `INSERT INTO orders (
-          id, user_id, total_amount,
-          shipping_full_name, shipping_phone, shipping_address,
-          shipping_ward, shipping_district, shipping_city, shipping_note,
-          payment_method, status, cancel_deadline
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?)`,
+          order_number, user_id, total_amount,
+          customer_name, customer_phone, customer_email,
+          shipping_address_text,
+          payment_method, status, order_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
         [
           id,
           userId,
           totalAmount,
           shippingAddress.fullName,
           shippingAddress.phoneNumber,
-          shippingAddress.address,
-          shippingAddress.ward,
-          shippingAddress.district,
-          shippingAddress.city,
-          shippingAddress.note || null,
+          '', // customer_email - can get from user table if needed
+          shippingAddressText,
           paymentMethod,
-          cancelDeadline,
+          orderDate,
+          orderDate,
         ]
       );
+
+      const orderId = orderResult.insertId; // Get auto-increment ID
 
       // Insert order items
       for (const item of items) {
         await connection.query(
           `INSERT INTO order_items (
-            order_id, product_id, product_name, product_image, price, quantity
-          ) VALUES (?, ?, ?, ?, ?, ?)`,
+            order_id, product_id, product_name, product_image_url, 
+            quantity, unit_price, category_name, product_description, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            id,
+            orderId, // Use numeric ID, not order_number
             item.productId,
             item.productName,
             item.productImage,
-            item.price,
             item.quantity,
+            item.price,
+            '', // category_name - can be added later
+            '', // product_description - can be added later
+            orderDate, // created_at
           ]
         );
       }
@@ -76,7 +86,7 @@ class Order {
         u.username, u.email, u.full_name as user_full_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
-      WHERE o.id = ?`,
+      WHERE o.order_number = ?`,
       [orderId]
     );
 
@@ -84,10 +94,10 @@ class Order {
 
     const order = orders[0];
 
-    // Get order items
+    // Get order items using orders.id (bigint), not order_number
     const [items] = await pool.query(
       `SELECT * FROM order_items WHERE order_id = ?`,
-      [orderId]
+      [order.id] // Use order.id (bigint) instead of orderId (order_number string)
     );
 
     return this.formatOrder(order, items);
@@ -242,38 +252,41 @@ class Order {
   // Helper: Format order object
   static formatOrder(order, items) {
     const canCancel =
-      ['NEW', 'CONFIRMED', 'PREPARING'].includes(order.status) &&
-      order.cancel_deadline &&
-      new Date() < new Date(order.cancel_deadline);
+      ['PENDING', 'CONFIRMED', 'PROCESSING'].includes(order.status) &&
+      order.order_date &&
+      new Date() - new Date(order.order_date) < 30 * 60 * 1000; // 30 minutes
 
+    // Parse shipping_address_text to extract components
+    const addressParts = order.shipping_address_text ? order.shipping_address_text.split(', ') : [];
+    
     return {
-      id: order.id,
+      id: order.order_number,
       userId: order.user_id,
       items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,
-        productName: item.product_name,
-        productImage: item.product_image,
-        price: parseFloat(item.price),
+        productName: item.product_name || '',
+        productImage: item.product_image_url || '',
+        price: parseFloat(item.unit_price || 0),
         quantity: item.quantity,
       })),
       totalAmount: parseFloat(order.total_amount),
       shippingAddress: {
-        fullName: order.shipping_full_name,
-        phoneNumber: order.shipping_phone,
-        address: order.shipping_address,
-        ward: order.shipping_ward,
-        district: order.shipping_district,
-        city: order.shipping_city,
-        note: order.shipping_note,
+        fullName: order.customer_name || '',
+        phoneNumber: order.customer_phone || '',
+        address: addressParts[0] || '',
+        ward: addressParts[1] || '',
+        district: addressParts[2] || '',
+        city: addressParts[3] || '',
+        note: order.notes || '',
       },
       paymentMethod: order.payment_method,
       status: order.status,
       createdAt: order.created_at,
-      confirmedAt: order.confirmed_at,
-      cancelledAt: order.cancelled_at,
-      deliveredAt: order.delivered_at,
-      cancelDeadline: order.cancel_deadline,
+      confirmedAt: null,
+      cancelledAt: order.status === 'CANCELLED' ? order.updated_at : null,
+      deliveredAt: order.delivered_date,
+      cancelDeadline: order.order_date ? new Date(new Date(order.order_date).getTime() + 30 * 60 * 1000) : null,
       canCancel,
     };
   }
