@@ -10,6 +10,7 @@ const userRoutes = require('./routes/users');
 const sessionRoutes = require('./routes/sessions');
 const profileRoutes = require('./routes/profile');
 const productRoutes = require('./routes/products');
+const orderRoutes = require('./routes/orders');
 const User = require('./models/User');
 const Session = require('./models/Session');
 const OTP = require('./models/OTP');
@@ -38,6 +39,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {
@@ -64,6 +66,7 @@ app.get('/', async (req, res) => {
         users: 'GET /api/users',
         sessions: 'GET /api/sessions',
         products: 'GET /api/products',
+        orders: 'GET /api/orders',
         register: 'POST /api/auth/register',
         registerWithOTP: 'POST /api/auth/send-registration-otp + POST /api/auth/verify-registration-otp',
         login: 'POST /api/auth/login',
