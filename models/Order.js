@@ -8,38 +8,45 @@ class Order {
       await connection.beginTransaction();
 
       const {
-        id,
         userId,
         items,
         totalAmount,
         shippingAddress,
         paymentMethod,
         cancelDeadline,
+        note,
+        couponCode = null,
+        discountAmount = 0,
+        pointsUsed = 0,
       } = orderData;
 
-      // Insert order
+      // Insert order (no custom id - use AUTO_INCREMENT)
       const [orderResult] = await connection.query(
         `INSERT INTO orders (
-          id, user_id, total_amount,
+          user_id, total_amount,
           shipping_full_name, shipping_phone, shipping_address,
           shipping_ward, shipping_district, shipping_city, shipping_note,
-          payment_method, status, cancel_deadline
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?)`,
+          payment_method, status, cancel_deadline, coupon_code, discount_amount, points_used
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?)`,
         [
-          id,
           userId,
           totalAmount,
-          shippingAddress.fullName,
-          shippingAddress.phoneNumber,
-          shippingAddress.address,
-          shippingAddress.ward,
-          shippingAddress.district,
-          shippingAddress.city,
-          shippingAddress.note || null,
+          shippingAddress.fullName || '',
+          shippingAddress.phoneNumber || '',
+          shippingAddress.address || '',
+          shippingAddress.ward || '',
+          shippingAddress.district || '',
+          shippingAddress.city || '',
+          shippingAddress.note || note || null,
           paymentMethod,
           cancelDeadline,
+          couponCode,
+          discountAmount,
+          pointsUsed
         ]
       );
+
+      const newOrderId = orderResult.insertId;
 
       // Insert order items
       for (const item of items) {
@@ -48,10 +55,10 @@ class Order {
             order_id, product_id, product_name, product_image, price, quantity
           ) VALUES (?, ?, ?, ?, ?, ?)`,
           [
-            id,
+            newOrderId,
             item.productId,
             item.productName,
-            item.productImage,
+            item.productImage || null,
             item.price,
             item.quantity,
           ]
@@ -59,7 +66,7 @@ class Order {
       }
 
       await connection.commit();
-      return await this.findById(id);
+      return await this.findById(newOrderId);
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -147,18 +154,14 @@ class Order {
   }
 
   // Update order status
-  static async updateStatus(orderId, status, userId = null) {
+  static async updateStatus(orderId, status, userId = null, carrierName = null) {
     const updates = { status };
     const now = new Date();
 
-    // Set timestamp based on status
-    if (status === 'CONFIRMED') {
-      updates.confirmed_at = now;
-    } else if (status === 'CANCELLED') {
-      updates.cancelled_at = now;
-    } else if (status === 'DELIVERED') {
-      updates.delivered_at = now;
-    }
+    if (status === 'CONFIRMED') updates.confirmed_at = now;
+    else if (status === 'CANCELLED') updates.cancelled_at = now;
+    else if (status === 'DELIVERED') updates.delivered_at = now;
+    if (carrierName) updates.carrier_name = carrierName;
 
     const fields = Object.keys(updates)
       .map((key) => `${this.camelToSnake(key)} = ?`)
@@ -168,50 +171,68 @@ class Order {
     let query = `UPDATE orders SET ${fields} WHERE id = ?`;
     const params = [...values, orderId];
 
-    // If userId provided, ensure user owns the order
     if (userId) {
       query += ` AND user_id = ?`;
       params.push(userId);
     }
 
     const [result] = await pool.query(query, params);
-
-    if (result.affectedRows === 0) {
-      return null;
-    }
-
+    if (result.affectedRows === 0) return null;
     return await this.findById(orderId);
   }
 
   // Cancel order
   static async cancel(orderId, userId) {
-    // Check if order can be cancelled
     const order = await this.findById(orderId);
     if (!order) return null;
-
-    if (order.userId !== userId) {
-      throw new Error('Unauthorized');
-    }
+    if (order.userId !== userId) throw new Error('Unauthorized');
 
     const now = new Date();
     const cancelDeadline = new Date(order.cancelDeadline);
+    if (now > cancelDeadline) throw new Error('Cancel deadline has passed');
 
-    // Check if within cancel deadline
-    if (now > cancelDeadline) {
-      throw new Error('Cancel deadline has passed');
-    }
-
-    // If preparing, request cancellation instead
     if (order.status === 'PREPARING') {
       return await this.updateStatus(orderId, 'CANCEL_REQUESTED', userId);
     }
-
-    // Otherwise, cancel directly
     if (['NEW', 'CONFIRMED'].includes(order.status)) {
       return await this.updateStatus(orderId, 'CANCELLED', userId);
     }
-
     throw new Error('Cannot cancel order in current status');
+  }
+
+  // Find ALL orders (admin)
+  static async findAll(options = {}) {
+    const { page = 1, limit = 20, status } = options;
+    const offset = (page - 1) * limit;
+
+    let query = `SELECT o.*, u.username, u.email, u.full_name as user_full_name
+      FROM orders o LEFT JOIN users u ON o.user_id = u.id`;
+    const params = [];
+
+    if (status) {
+      query += ` WHERE o.status = ?`;
+      params.push(status);
+    }
+    query += ` ORDER BY o.created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const [orders] = await pool.query(query, params);
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const [items] = await pool.query(`SELECT * FROM order_items WHERE order_id = ?`, [order.id]);
+        return this.formatOrder(order, items);
+      })
+    );
+
+    const countQuery = status
+      ? `SELECT COUNT(*) as total FROM orders WHERE status = ?`
+      : `SELECT COUNT(*) as total FROM orders`;
+    const [countResult] = await pool.query(countQuery, status ? [status] : []);
+
+    return {
+      orders: ordersWithItems,
+      pagination: { page, limit, totalItems: countResult[0].total, totalPages: Math.ceil(countResult[0].total / limit) },
+    };
   }
 
   // Get order statistics
@@ -249,6 +270,8 @@ class Order {
     return {
       id: order.id,
       userId: order.user_id,
+      userEmail: order.email,
+      userFullName: order.user_full_name,
       items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,
@@ -267,7 +290,11 @@ class Order {
         city: order.shipping_city,
         note: order.shipping_note,
       },
+      couponCode: order.coupon_code || null,
+      discountAmount: parseFloat(order.discount_amount || 0),
+      pointsUsed: parseInt(order.points_used || 0),
       paymentMethod: order.payment_method,
+      carrierName: order.carrier_name || null,
       status: order.status,
       createdAt: order.created_at,
       confirmedAt: order.confirmed_at,

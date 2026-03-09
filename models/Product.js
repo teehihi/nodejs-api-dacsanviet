@@ -134,7 +134,10 @@ class Product {
                p.discount_percent, p.discount_price,
                CAST(p.is_active AS UNSIGNED) as is_active,
                CAST(p.is_featured AS UNSIGNED) as is_featured,
-               c.name as category_name
+               c.name as category_name,
+               (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id = p.id) as reviewCount,
+               (SELECT IFNULL(AVG(rating), 0) FROM product_reviews pr WHERE pr.product_id = p.id) as avgRating,
+               (SELECT COUNT(DISTINCT o.user_id) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status IN ('DELIVERED', 'COMPLETED')) as buyerCount
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id = ? AND CAST(p.is_active AS UNSIGNED) = 1
@@ -256,9 +259,87 @@ class Product {
             rating: 4.5, // Schema doesn't have rating yet, default 4.5
             soldCount: dbProduct.sold_quantity || 0,
             isActive: dbProduct.is_active === 1,
-            createdAt: dbProduct.created_at
+            createdAt: dbProduct.created_at,
+            avgRating: dbProduct.avgRating || 0,
+            reviewCount: dbProduct.reviewCount || 0,
+            buyerCount: dbProduct.buyerCount || 0
         };
     }
+
+    // Thêm phương thức lấy sản phẩm tương tự
+    static async getSimilarProducts(productId, limit = 10) {
+        try {
+            // First get the category of this product
+            const [prodRows] = await pool.execute('SELECT category_id FROM products WHERE id = ?', [productId]);
+            if (prodRows.length === 0) return [];
+
+            const categoryId = prodRows[0].category_id;
+
+            // Then get other products in same category
+            const [rows] = await pool.execute(`
+                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                       p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+                       p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
+                       p.discount_percent, p.discount_price,
+                       CAST(p.is_active AS UNSIGNED) as is_active,
+                       CAST(p.is_featured AS UNSIGNED) as is_featured,
+                       c.name as category_name
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.category_id = ? AND p.id != ? AND CAST(p.is_active AS UNSIGNED) = 1
+                ORDER BY p.sold_quantity DESC, RAND()
+                LIMIT ${parseInt(limit)}
+            `, [categoryId, productId]);
+
+            return rows.map(Product.formatProduct);
+        } catch (error) {
+            console.error('Error getting similar products:', error);
+            throw error;
+        }
+    }
+
+    // Thêm phương thức lấy sản phẩm đã xem gần đây
+    static async getRecentlyViewed(userId, limit = 10) {
+        if (!userId) return [];
+        try {
+            const [rows] = await pool.execute(`
+                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                       p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+                       p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
+                       p.discount_percent, p.discount_price,
+                       CAST(p.is_active AS UNSIGNED) as is_active,
+                       CAST(p.is_featured AS UNSIGNED) as is_featured,
+                       c.name as category_name,
+                       MAX(v.viewed_at) as last_viewed
+                FROM product_views v
+                JOIN products p ON v.product_id = p.id
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE v.user_id = ? AND CAST(p.is_active AS UNSIGNED) = 1
+                GROUP BY p.id
+                ORDER BY last_viewed DESC
+                LIMIT ${parseInt(limit)}
+            `, [userId]);
+
+            return rows.map(Product.formatProduct);
+        } catch (error) {
+            console.error('Error getting recently viewed products:', error);
+            throw error;
+        }
+    }
+
+    // Phương thức track lượt xem
+    static async trackView(userId, productId) {
+        if (!userId || !productId) return;
+        try {
+            await pool.execute(
+                'INSERT INTO product_views (user_id, product_id) VALUES (?, ?)',
+                [userId, productId]
+            );
+        } catch (error) {
+            console.error('Error tracking view:', error);
+        }
+    }
+
     // Lấy danh sách danh mục (legacy method)
     static async getAllCategories() {
         try {
