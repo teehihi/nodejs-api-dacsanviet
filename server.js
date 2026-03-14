@@ -27,7 +27,6 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Trust proxy for getting real IP
-// Trust proxy for getting real IP (set to 1 to trust only the first hop, fixing rate limit warning)
 app.set('trust proxy', 1);
 
 // Serve static files

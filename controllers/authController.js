@@ -149,6 +149,7 @@ const login = async (req, res) => {
       message: 'Đăng nhập thành công',
       data: {
         user: userResponse,
+        token: tokens.accessToken, // Add flat token field for frontend compatibility
         tokens,
         session: {
           sessionId: sessionId,
