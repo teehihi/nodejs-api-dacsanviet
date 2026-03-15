@@ -23,10 +23,11 @@ class Order {
       // Create full address string
       const shippingAddressText = `${shippingAddress.address}, ${shippingAddress.ward}, ${shippingAddress.district}, ${shippingAddress.city}`;
       
-      // Get current date for order_date
+      // Generate order_number
+      const orderNumber = `ORD${Date.now()}`;
       const orderDate = new Date();
 
-      // Insert order directly with shipping info
+      // Insert order
       const [orderResult] = await connection.query(
         `INSERT INTO orders (
           order_number, user_id, total_amount,
@@ -35,11 +36,12 @@ class Order {
           payment_method, status, order_date, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
         [
+          orderNumber,
           userId,
           totalAmount,
           shippingAddress.fullName,
           shippingAddress.phoneNumber,
-          '', // customer_email - can get from user table if needed
+          '',
           shippingAddressText,
           paymentMethod,
           orderDate,
@@ -71,7 +73,7 @@ class Order {
       }
 
       await connection.commit();
-      return await this.findById(newOrderId);
+      return await this.findById(orderNumber);
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -277,6 +279,7 @@ class Order {
     
     return {
       id: order.order_number,
+      numericId: order.id,
       userId: order.user_id,
       userEmail: order.email,
       userFullName: order.user_full_name,

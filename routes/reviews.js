@@ -10,5 +10,6 @@ router.get('/product/:productId', reviewController.getProductReviews);
 router.use(authenticateToken);
 router.post('/', reviewController.createReview);
 router.get('/my', reviewController.getMyReviews);
+router.get('/reviewable/:orderId', reviewController.getReviewableItems);
 
 module.exports = router;

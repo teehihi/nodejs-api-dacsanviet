@@ -58,3 +58,15 @@ exports.getMyReviews = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };
+
+exports.getReviewableItems = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { orderId } = req.params;
+        const items = await Review.getReviewableItems(userId, orderId);
+        res.json({ success: true, data: items });
+    } catch (error) {
+        console.error('Get reviewable items error:', error);
+        res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
+    }
+};
