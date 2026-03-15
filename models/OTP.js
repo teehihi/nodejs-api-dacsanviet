@@ -15,14 +15,15 @@ class OTP {
       const otp = new OTP(otpData);
       
       const [result] = await pool.execute(`
-        INSERT INTO otp_codes (email, otp_code, purpose, expires_at, is_used, created_at)
-        VALUES (?, ?, ?, ?, ?, NOW())
+        INSERT INTO otp_codes (email, otp_code, purpose, expires_at, is_used, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, NOW())
       `, [
         otp.email,
         otp.otpCode,
         otp.purpose,
         otp.expiresAt,
-        otp.isUsed
+        otp.isUsed,
+        otpData.metadata || null
       ]);
 
       if (result.affectedRows > 0) {
@@ -180,7 +181,8 @@ class OTP {
       createdAt: dbOTP.created_at,
       expiresAt: dbOTP.expires_at,
       isUsed: dbOTP.is_used,
-      usedAt: dbOTP.used_at
+      usedAt: dbOTP.used_at,
+      metadata: dbOTP.metadata // Thêm metadata field
     };
   }
 

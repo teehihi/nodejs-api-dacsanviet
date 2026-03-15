@@ -126,9 +126,31 @@ const requireOwnershipOrAdmin = (req, res, next) => {
   next();
 };
 
+// Middleware kiểm tra role (flexible)
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Chưa xác thực'
+      });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Không có quyền truy cập'
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   authenticateToken,
   requireAdmin,
   requireStaffOrAdmin,
-  requireOwnershipOrAdmin
+  requireOwnershipOrAdmin,
+  requireRole
 };

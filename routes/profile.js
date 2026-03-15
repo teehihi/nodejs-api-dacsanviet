@@ -8,6 +8,8 @@ const {
   updateProfile,
   uploadAvatar,
   changePassword,
+  sendPasswordChangeOTP,
+  verifyPasswordChangeOTP,
   sendEmailUpdateOTP,
   verifyEmailUpdate,
   sendPhoneUpdateOTP,
@@ -55,8 +57,14 @@ router.patch('/', updateProfile);
 // POST /api/profile/avatar - Upload avatar
 router.post('/avatar', upload.single('avatar'), uploadAvatar);
 
-// POST /api/profile/change-password - Change password
+// POST /api/profile/change-password - Change password (legacy - without OTP)
 router.post('/change-password', changePassword);
+
+// POST /api/profile/password/send-otp - Send OTP for password change
+router.post('/password/send-otp', sendPasswordChangeOTP);
+
+// POST /api/profile/password/verify-otp - Verify OTP and change password
+router.post('/password/verify-otp', verifyPasswordChangeOTP);
 
 // POST /api/profile/email/send-otp - Send OTP for email update
 router.post('/email/send-otp', sendEmailUpdateOTP);
@@ -104,11 +112,31 @@ router.get('/info', (req, res) => {
       changePassword: {
         method: 'POST',
         path: '/api/profile/change-password',
-        description: 'Đổi mật khẩu',
+        description: 'Đổi mật khẩu (legacy - không OTP)',
         auth: 'Required (JWT)',
         body: {
           currentPassword: 'string (required)',
           newPassword: 'string (required, min 6 chars)'
+        }
+      },
+      sendPasswordChangeOTP: {
+        method: 'POST',
+        path: '/api/profile/password/send-otp',
+        description: 'Gửi OTP để đổi mật khẩu',
+        auth: 'Required (JWT)',
+        body: {
+          currentPassword: 'string (required)'
+        }
+      },
+      verifyPasswordChangeOTP: {
+        method: 'POST',
+        path: '/api/profile/password/verify-otp',
+        description: 'Xác thực OTP và đổi mật khẩu',
+        auth: 'Required (JWT)',
+        body: {
+          currentPassword: 'string (required)',
+          newPassword: 'string (required, min 6 chars)',
+          otpCode: 'string (required)'
         }
       },
       sendEmailUpdateOTP: {

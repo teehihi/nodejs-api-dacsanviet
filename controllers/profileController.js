@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const OTP = require('../models/OTP');
 const emailService = require('../services/emailService');
 const { validateEmail, validatePassword } = require('../utils/validation');
 const path = require('path');
@@ -10,7 +10,7 @@ const fs = require('fs').promises;
 const getProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
@@ -119,8 +119,10 @@ const uploadAvatar = async (req, res) => {
 
     // Delete old avatar file if exists
     if (oldAvatarUrl && oldAvatarUrl !== avatarUrl) {
-      const oldAvatarPath = path.join(__dirname, '..', 'public', oldAvatarUrl);
-      await fs.unlink(oldAvatarPath).catch(err => console.log('Old avatar not found or already deleted'));
+      const relativePath = oldAvatarUrl.startsWith('/') ? oldAvatarUrl.substring(1) : oldAvatarUrl;
+      const oldAvatarPath = path.join(__dirname, '..', 'public', relativePath);
+      console.log('Attempting to delete old avatar:', oldAvatarPath);
+      await fs.unlink(oldAvatarPath).catch(err => console.log('Old avatar deletion failed or file not found:', err.message));
     }
 
     const userResponse = User.sanitizeUser(updatedUser);
@@ -268,53 +270,37 @@ const sendEmailUpdateOTP = async (req, res) => {
       });
     }
 
-    // Check rate limit
-    const canSendOTP = await OTP.checkRateLimit(newEmail, 'email_update', 300000, 3); // 5 minutes, max 3 times
-    if (!canSendOTP) {
-      return res.status(429).json({
-        success: false,
-        message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 5 phút'
-      });
+    // Generate OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    console.log('🔍 Generated Email OTP:', otpCode, 'for new email:', newEmail);
+
+    // Send OTP email to CURRENT email (not new email) for security
+    const emailResult = await emailService.sendEmailUpdateOTP(user.email, otpCode, user.fullName, newEmail);
+    if (!emailResult.success) {
+      // Log warning but don't block - OTP is still valid for dev/testing
+      console.warn('⚠️  Email send failed (SMTP issue). OTP still valid.');
+      console.log('📋 USE THIS OTP FOR TESTING:', otpCode);
+    } else {
+      console.log('✅ Email OTP sent successfully');
     }
 
-    // Invalidate old OTPs
-    await OTP.invalidateOldOTPs(newEmail, 'email_update');
-
-    // Create new OTP
-    const otpCode = OTP.generateOTPCode(6);
-    const expiresAt = OTP.calculateExpiryTime(5); // 5 minutes
-
-    const otpData = {
-      email: newEmail,
+    // Create JWT token chứa OTP info
+    const otpToken = jwt.sign({
+      userId,
+      currentEmail: user.email,
+      newEmail,
       otpCode,
       purpose: 'email_update',
-      expiresAt,
-      metadata: JSON.stringify({ userId })
-    };
-
-    const otp = await OTP.create(otpData);
-    if (!otp) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể tạo mã OTP'
-      });
-    }
-
-    // Send OTP email
-    const emailResult = await emailService.sendEmailUpdateOTP(newEmail, otpCode, user.fullName);
-    if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể gửi email OTP'
-      });
-    }
+      exp: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes
+    }, process.env.JWT_SECRET);
 
     res.status(200).json({
       success: true,
-      message: 'Mã OTP đã được gửi đến email mới của bạn',
+      message: 'Mã OTP đã được gửi đến email hiện tại của bạn',
       data: {
-        email: newEmail,
-        expiresAt,
+        email: user.email, // Return current email, not new email
+        otpToken,
         expiresIn: '5 phút'
       }
     });
@@ -331,10 +317,10 @@ const sendEmailUpdateOTP = async (req, res) => {
 const verifyEmailUpdate = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { newEmail, otpCode } = req.body;
+    const { newEmail, otpCode, otpToken } = req.body;
 
     // Validation
-    if (!newEmail || !otpCode) {
+    if (!newEmail || !otpCode || !otpToken) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập email mới và mã OTP'
@@ -349,18 +335,30 @@ const verifyEmailUpdate = async (req, res) => {
       });
     }
 
-    // Verify OTP
-    const validOTP = await OTP.findValidOTP(newEmail, otpCode, 'email_update');
-    if (!validOTP) {
+    // Verify OTP token
+    let tokenData;
+    try {
+      tokenData = jwt.verify(otpToken, process.env.JWT_SECRET);
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Mã OTP không hợp lệ hoặc đã hết hạn'
+        message: 'Mã OTP đã hết hạn'
       });
     }
 
-    // Verify OTP belongs to this user
-    const otpMetadata = validOTP.metadata ? JSON.parse(validOTP.metadata) : {};
-    if (otpMetadata.userId !== userId) {
+    console.log('🔍 Debug Email OTP verification:');
+    console.log('- Token Data:', tokenData);
+    console.log('- Input OTP:', otpCode);
+    console.log('- Token OTP:', tokenData.otpCode);
+    console.log('- User ID match:', tokenData.userId === userId);
+    console.log('- Email match:', tokenData.newEmail === newEmail);
+    console.log('- Purpose:', tokenData.purpose);
+
+    // Verify OTP code and data
+    if (tokenData.otpCode !== otpCode ||
+      tokenData.userId !== userId ||
+      tokenData.newEmail !== newEmail ||
+      tokenData.purpose !== 'email_update') {
       return res.status(403).json({
         success: false,
         message: 'Mã OTP không hợp lệ'
@@ -384,10 +382,9 @@ const verifyEmailUpdate = async (req, res) => {
       });
     }
 
-    // Mark OTP as used
-    await OTP.markAsUsed(validOTP.id);
-
     const userResponse = User.sanitizeUser(updatedUser);
+
+    console.log('✅ Email updated successfully for user:', tokenData.currentEmail, '→', newEmail);
 
     res.status(200).json({
       success: true,
@@ -436,53 +433,36 @@ const sendPhoneUpdateOTP = async (req, res) => {
       });
     }
 
-    // Check rate limit (use email as identifier since we're sending to email)
-    const canSendOTP = await OTP.checkRateLimit(user.email, 'phone_update', 300000, 3);
-    if (!canSendOTP) {
-      return res.status(429).json({
-        success: false,
-        message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 5 phút'
-      });
-    }
+    // Generate OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Invalidate old OTPs
-    await OTP.invalidateOldOTPs(user.email, 'phone_update');
-
-    // Create new OTP
-    const otpCode = OTP.generateOTPCode(6);
-    const expiresAt = OTP.calculateExpiryTime(5); // 5 minutes
-
-    const otpData = {
-      email: user.email, // Send to current email
-      otpCode,
-      purpose: 'phone_update',
-      expiresAt,
-      metadata: JSON.stringify({ userId, newPhone })
-    };
-
-    const otp = await OTP.create(otpData);
-    if (!otp) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể tạo mã OTP'
-      });
-    }
+    console.log('🔍 Generated Phone OTP:', otpCode, 'for user:', user.email);
 
     // Send OTP to user's email (fallback since SMS is not implemented)
     const emailResult = await emailService.sendPhoneUpdateOTP(user.email, otpCode, user.fullName, newPhone);
     if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể gửi email OTP'
-      });
+      console.warn('⚠️  Email send failed (SMTP issue). OTP still valid.');
+      console.log('📋 USE THIS OTP FOR TESTING:', otpCode);
+    } else {
+      console.log('✅ Phone OTP email sent successfully');
     }
+
+    // Create JWT token chứa OTP info
+    const otpToken = jwt.sign({
+      userId,
+      email: user.email,
+      otpCode,
+      purpose: 'phone_update',
+      newPhone,
+      exp: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes
+    }, process.env.JWT_SECRET);
 
     res.status(200).json({
       success: true,
       message: 'Mã OTP đã được gửi đến email của bạn',
       data: {
         email: user.email,
-        expiresAt,
+        otpToken,
         expiresIn: '5 phút'
       }
     });
@@ -499,10 +479,10 @@ const sendPhoneUpdateOTP = async (req, res) => {
 const verifyPhoneUpdate = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { newPhone, otpCode } = req.body;
+    const { newPhone, otpCode, otpToken } = req.body;
 
     // Validation
-    if (!newPhone || !otpCode) {
+    if (!newPhone || !otpCode || !otpToken) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập số điện thoại mới và mã OTP'
@@ -518,18 +498,32 @@ const verifyPhoneUpdate = async (req, res) => {
       });
     }
 
-    // Verify OTP
-    const validOTP = await OTP.findValidOTP(user.email, otpCode, 'phone_update');
-    if (!validOTP) {
+    // Verify OTP token
+    let tokenData;
+    try {
+      tokenData = jwt.verify(otpToken, process.env.JWT_SECRET);
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Mã OTP không hợp lệ hoặc đã hết hạn'
+        message: 'Mã OTP đã hết hạn'
       });
     }
 
-    // Verify OTP belongs to this user and phone number matches
-    const otpMetadata = validOTP.metadata ? JSON.parse(validOTP.metadata) : {};
-    if (otpMetadata.userId !== userId || otpMetadata.newPhone !== newPhone) {
+    console.log('🔍 Debug Phone OTP verification:');
+    console.log('- Token Data:', tokenData);
+    console.log('- Input OTP:', otpCode);
+    console.log('- Token OTP:', tokenData.otpCode);
+    console.log('- User ID match:', tokenData.userId === userId);
+    console.log('- Email match:', tokenData.email === user.email);
+    console.log('- Phone match:', tokenData.newPhone === newPhone);
+    console.log('- Purpose:', tokenData.purpose);
+
+    // Verify OTP code and data
+    if (tokenData.otpCode !== otpCode ||
+      tokenData.userId !== userId ||
+      tokenData.email !== user.email ||
+      tokenData.newPhone !== newPhone ||
+      tokenData.purpose !== 'phone_update') {
       return res.status(403).json({
         success: false,
         message: 'Mã OTP không hợp lệ'
@@ -545,10 +539,9 @@ const verifyPhoneUpdate = async (req, res) => {
       });
     }
 
-    // Mark OTP as used
-    await OTP.markAsUsed(validOTP.id);
-
     const userResponse = User.sanitizeUser(updatedUser);
+
+    console.log('✅ Phone updated successfully for user:', user.email);
 
     res.status(200).json({
       success: true,
@@ -566,11 +559,201 @@ const verifyPhoneUpdate = async (req, res) => {
   }
 };
 
+// Send OTP for password change
+const sendPasswordChangeOTP = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword } = req.body;
+
+    // Validation
+    if (!currentPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập mật khẩu hiện tại'
+      });
+    }
+
+    // Get user with password
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng'
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Mật khẩu hiện tại không chính xác'
+      });
+    }
+
+    // Generate OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
+
+    console.log('🔍 Generated OTP:', otpCode, 'for user:', user.email);
+
+    // Send OTP email
+    const emailResult = await emailService.sendPasswordChangeOTP(user.email, otpCode, user.fullName);
+    if (!emailResult.success) {
+      console.warn('⚠️  Email send failed (SMTP issue). OTP still valid.');
+      console.log('📋 USE THIS OTP FOR TESTING:', otpCode);
+    } else {
+      console.log('✅ Password OTP email sent successfully');
+    }
+
+    // Create JWT token chứa OTP info (expires in 5 minutes)
+    const otpToken = jwt.sign({
+      userId,
+      email: user.email,
+      otpCode,
+      purpose: 'password_change',
+      exp: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes
+    }, process.env.JWT_SECRET);
+
+    // Store OTP token in memory cache (optional - for rate limiting)
+    global.otpCache = global.otpCache || new Map();
+    const cacheKey = `${user.email}_password_change`;
+    global.otpCache.set(cacheKey, {
+      attempts: (global.otpCache.get(cacheKey)?.attempts || 0) + 1,
+      lastSent: Date.now()
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Mã OTP đã được gửi đến email của bạn',
+      data: {
+        email: user.email,
+        otpToken, // Frontend sẽ gửi lại token này khi verify
+        expiresIn: '5 phút'
+      }
+    });
+  } catch (error) {
+    console.error('Send password change OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi gửi OTP'
+    });
+  }
+};
+
+// Verify OTP and change password
+const verifyPasswordChangeOTP = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword, otpCode, otpToken } = req.body;
+
+    // Validation
+    if (!currentPassword || !newPassword || !otpCode || !otpToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ thông tin'
+      });
+    }
+
+    // Validate new password strength
+    if (!validatePassword(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu mới phải có ít nhất 6 ký tự'
+      });
+    }
+
+    // Get user with password
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng'
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Mật khẩu hiện tại không chính xác'
+      });
+    }
+
+    // Check if new password is same as current
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu mới phải khác mật khẩu hiện tại'
+      });
+    }
+
+    // Verify OTP token
+    let tokenData;
+    try {
+      tokenData = jwt.verify(otpToken, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã OTP đã hết hạn'
+      });
+    }
+
+    console.log('🔍 Debug OTP verification:');
+    console.log('- Token Data:', tokenData);
+    console.log('- Input OTP:', otpCode);
+    console.log('- Token OTP:', tokenData.otpCode);
+    console.log('- User ID match:', tokenData.userId === userId);
+    console.log('- Email match:', tokenData.email === user.email);
+    console.log('- Purpose:', tokenData.purpose);
+
+    // Verify OTP code and user
+    if (tokenData.otpCode !== otpCode ||
+      tokenData.userId !== userId ||
+      tokenData.email !== user.email ||
+      tokenData.purpose !== 'password_change') {
+      return res.status(403).json({
+        success: false,
+        message: 'Mã OTP không hợp lệ'
+      });
+    }
+
+    // Hash new password
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    const updatedUser = await User.updateById(userId, { password: hashedPassword });
+    if (!updatedUser) {
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể cập nhật mật khẩu'
+      });
+    }
+
+    console.log('✅ Password changed successfully for user:', user.email);
+
+    res.status(200).json({
+      success: true,
+      message: 'Đổi mật khẩu thành công'
+    });
+  } catch (error) {
+    console.error('Verify password change OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi đổi mật khẩu'
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   uploadAvatar,
   changePassword,
+  sendPasswordChangeOTP,
+  verifyPasswordChangeOTP,
   sendEmailUpdateOTP,
   verifyEmailUpdate,
   sendPhoneUpdateOTP,

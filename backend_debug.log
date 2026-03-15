@@ -1,0 +1,544 @@
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["6",20,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["63",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["63",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["4",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["4",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?,?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["4","3",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?,?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["4","3",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["3",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["3",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["3",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["3",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND c.name IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["3",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,6]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["4",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["4",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["1",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["1",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Tr%","1",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Tr%","1",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Trà%","1",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Trà%","1",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Tra%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Tra%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Tr%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Tr%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Trà%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Trà%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%banh%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%banh%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Banh%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Banh%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Tra%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Tra%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: [6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: [10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%","1",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%","1",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",6,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.price ASC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",10,0]
+
+Query: 
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_active = 1
+       AND p.name LIKE ? AND p.category_id IN (?) ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+Params: ["%Mam%","4",6,0]
