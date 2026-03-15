@@ -1,4 +1,4 @@
-const { pool } = require('../config/database');
+const { pool } = require("../config/database");
 
 class Order {
   // Create new order
@@ -19,7 +19,7 @@ class Order {
 
       // Create full address string
       const shippingAddressText = `${shippingAddress.address}, ${shippingAddress.ward}, ${shippingAddress.district}, ${shippingAddress.city}`;
-      
+
       // Get current date for order_date
       const orderDate = new Date();
 
@@ -30,19 +30,19 @@ class Order {
           customer_name, customer_phone, customer_email,
           shipping_address_text,
           payment_method, status, order_date, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?)`,
         [
           id,
           userId,
           totalAmount,
           shippingAddress.fullName,
           shippingAddress.phoneNumber,
-          '', // customer_email - can get from user table if needed
+          "", // customer_email - can get from user table if needed
           shippingAddressText,
           paymentMethod,
           orderDate,
           orderDate,
-        ]
+        ],
       );
 
       const orderId = orderResult.insertId; // Get auto-increment ID
@@ -51,7 +51,7 @@ class Order {
       for (const item of items) {
         await connection.query(
           `INSERT INTO order_items (
-            order_id, product_id, product_name, product_image_url, 
+            order_id, product_id, product_name, product_image_url,
             quantity, unit_price, category_name, product_description, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
@@ -61,10 +61,10 @@ class Order {
             item.productImage,
             item.quantity,
             item.price,
-            '', // category_name - can be added later
-            '', // product_description - can be added later
+            "", // category_name - can be added later
+            "", // product_description - can be added later
             orderDate, // created_at
-          ]
+          ],
         );
       }
 
@@ -81,13 +81,13 @@ class Order {
   // Find order by ID
   static async findById(orderId) {
     const [orders] = await pool.query(
-      `SELECT 
+      `SELECT
         o.*,
         u.username, u.email, u.full_name as user_full_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       WHERE o.order_number = ?`,
-      [orderId]
+      [orderId],
     );
 
     if (orders.length === 0) return null;
@@ -97,7 +97,7 @@ class Order {
     // Get order items using orders.id (bigint), not order_number
     const [items] = await pool.query(
       `SELECT * FROM order_items WHERE order_id = ?`,
-      [order.id] // Use order.id (bigint) instead of orderId (order_number string)
+      [order.id], // Use order.id (bigint) instead of orderId (order_number string)
     );
 
     return this.formatOrder(order, items);
@@ -109,7 +109,7 @@ class Order {
     const offset = (page - 1) * limit;
 
     let query = `
-      SELECT o.* 
+      SELECT o.*
       FROM orders o
       WHERE o.user_id = ?
     `;
@@ -130,10 +130,10 @@ class Order {
       orders.map(async (order) => {
         const [items] = await pool.query(
           `SELECT * FROM order_items WHERE order_id = ?`,
-          [order.id]
+          [order.id],
         );
         return this.formatOrder(order, items);
-      })
+      }),
     );
 
     // Get total count
@@ -158,24 +158,15 @@ class Order {
 
   // Update order status
   static async updateStatus(orderId, status, userId = null) {
-    const updates = { status };
-    const now = new Date();
+    const updates = { status, updated_at: new Date() };
 
-    // Set timestamp based on status
-    if (status === 'CONFIRMED') {
-      updates.confirmed_at = now;
-    } else if (status === 'CANCELLED') {
-      updates.cancelled_at = now;
-    } else if (status === 'DELIVERED') {
-      updates.delivered_at = now;
-    }
+    // Format SET clause securely
+    const fields = ['status', 'updated_at']
+      .map((key) => `${key} = ?`)
+      .join(", ");
+    const values = [updates.status, updates.updated_at];
 
-    const fields = Object.keys(updates)
-      .map((key) => `${this.camelToSnake(key)} = ?`)
-      .join(', ');
-    const values = Object.values(updates);
-
-    let query = `UPDATE orders SET ${fields} WHERE id = ?`;
+    let query = `UPDATE orders SET ${fields} WHERE order_number = ?`;
     const params = [...values, orderId];
 
     // If userId provided, ensure user owns the order
@@ -200,41 +191,45 @@ class Order {
     if (!order) return null;
 
     if (order.userId !== userId) {
-      throw new Error('Unauthorized');
+      throw new Error("Unauthorized");
     }
 
     const now = new Date();
-    const cancelDeadline = new Date(order.cancelDeadline);
+    // Use order_date to calculate 30 min if cancelDeadline is not set
+    const cancelDeadline = order.cancelDeadline
+      ? new Date(order.cancelDeadline)
+      : new Date(new Date(order.order_date).getTime() + 30 * 60 * 1000);
 
     // Check if within cancel deadline
     if (now > cancelDeadline) {
-      throw new Error('Cancel deadline has passed');
+      throw new Error("Cancel deadline has passed");
     }
 
-    // If preparing, request cancellation instead
-    if (order.status === 'PREPARING') {
-      return await this.updateStatus(orderId, 'CANCEL_REQUESTED', userId);
+    // Only allow cancel if order is NEW or CONFIRMED
+    if (["NEW", "CONFIRMED"].includes(order.status)) {
+      return await this.updateStatus(orderId, "CANCELLED", userId);
     }
 
-    // Otherwise, cancel directly
-    if (['NEW', 'CONFIRMED'].includes(order.status)) {
-      return await this.updateStatus(orderId, 'CANCELLED', userId);
+    // If step 3 (PREPARING), switch to CANCEL_REQUESTED
+    if (order.status === "PREPARING") {
+      return await this.updateStatus(orderId, "CANCEL_REQUESTED", userId);
     }
 
-    throw new Error('Cannot cancel order in current status');
+    throw new Error("Cannot cancel order in current status");
   }
 
   // Get order statistics
   static async getStats(userId = null) {
     let query = `
-      SELECT 
+      SELECT
         COUNT(*) as total_orders,
-        SUM(CASE WHEN status = 'NEW' THEN 1 ELSE 0 END) as new_orders,
+        SUM(CASE WHEN status = 'NEW' THEN 1 ELSE 0 END) as pending_orders,
         SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END) as confirmed_orders,
-        SUM(CASE WHEN status = 'PREPARING' THEN 1 ELSE 0 END) as preparing_orders,
-        SUM(CASE WHEN status = 'SHIPPING' THEN 1 ELSE 0 END) as shipping_orders,
+        SUM(CASE WHEN status = 'PREPARING' THEN 1 ELSE 0 END) as processing_orders,
+        SUM(CASE WHEN status = 'SHIPPING' THEN 1 ELSE 0 END) as shipped_orders,
         SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered_orders,
         SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled_orders,
+        SUM(CASE WHEN status = 'CANCEL_REQUESTED' THEN 1 ELSE 0 END) as cancel_requested_orders,
         SUM(total_amount) as total_revenue
       FROM orders
     `;
@@ -252,43 +247,63 @@ class Order {
   // Helper: Format order object
   static formatOrder(order, items) {
     const canCancel =
-      ['PENDING', 'CONFIRMED', 'PROCESSING'].includes(order.status) &&
+      ["NEW", "CONFIRMED", "PREPARING"].includes(order.status) &&
       order.order_date &&
       new Date() - new Date(order.order_date) < 30 * 60 * 1000; // 30 minutes
 
     // Parse shipping_address_text to extract components
-    const addressParts = order.shipping_address_text ? order.shipping_address_text.split(', ') : [];
-    
+    const addressParts = order.shipping_address_text
+      ? order.shipping_address_text.split(", ")
+      : [];
+
     return {
       id: order.order_number,
       userId: order.user_id,
       items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,
-        productName: item.product_name || '',
-        productImage: item.product_image_url || '',
-        price: parseFloat(item.unit_price || 0),
+        productName: item.product_name || "",
+        productImage: item.product_image_url || item.product_image || "",
+        price: parseFloat(item.unit_price || item.price || 0),
         quantity: item.quantity,
       })),
       totalAmount: parseFloat(order.total_amount),
       shippingAddress: {
-        fullName: order.customer_name || '',
-        phoneNumber: order.customer_phone || '',
-        address: addressParts[0] || '',
-        ward: addressParts[1] || '',
-        district: addressParts[2] || '',
-        city: addressParts[3] || '',
-        note: order.notes || '',
+        fullName: order.customer_name || "",
+        phoneNumber: order.customer_phone || "",
+        address: addressParts[0] || "",
+        ward: addressParts[1] || "",
+        district: addressParts[2] || "",
+        city: addressParts[3] || "",
+        note: order.notes || "",
       },
       paymentMethod: order.payment_method,
       status: order.status,
       createdAt: order.created_at,
-      confirmedAt: null,
-      cancelledAt: order.status === 'CANCELLED' ? order.updated_at : null,
+      confirmedAt: order.status === "CONFIRMED" ? order.updated_at : null,
+      cancelledAt: order.status === "CANCELLED" ? order.updated_at : null,
       deliveredAt: order.delivered_date,
-      cancelDeadline: order.order_date ? new Date(new Date(order.order_date).getTime() + 30 * 60 * 1000) : null,
+      cancelDeadline: order.order_date
+        ? new Date(new Date(order.order_date).getTime() + 30 * 60 * 1000)
+        : null,
       canCancel,
     };
+  }
+
+  static async autoConfirmOrders() {
+    try {
+      // Auto confirm any NEW orders that are older than 30 minutes
+      // Since order_date is datetime, we can use INTERVAL 30 MINUTE in MySQL
+      const [result] = await pool.query(
+        `UPDATE orders 
+         SET status = 'CONFIRMED', updated_at = NOW() 
+         WHERE status = 'NEW' AND order_date <= DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
+      );
+      return result.affectedRows;
+    } catch (error) {
+      console.error("Auto confirm error:", error);
+      return 0;
+    }
   }
 
   // Helper: Convert camelCase to snake_case

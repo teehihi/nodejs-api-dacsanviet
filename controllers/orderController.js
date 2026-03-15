@@ -1,5 +1,5 @@
-const Order = require('../models/Order');
-const { validationResult } = require('express-validator');
+const Order = require("../models/Order");
+const { validationResult } = require("express-validator");
 
 // Create new order
 exports.createOrder = async (req, res) => {
@@ -8,7 +8,7 @@ exports.createOrder = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: errors.array(),
       });
     }
@@ -20,14 +20,14 @@ exports.createOrder = async (req, res) => {
     if (!items || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Order must contain at least one item',
+        message: "Order must contain at least one item",
       });
     }
 
     // Calculate total amount
     const totalAmount = items.reduce(
       (sum, item) => sum + item.price * item.quantity,
-      0
+      0,
     );
 
     // Generate order ID
@@ -42,7 +42,7 @@ exports.createOrder = async (req, res) => {
       items,
       totalAmount,
       shippingAddress,
-      paymentMethod: paymentMethod || 'COD',
+      paymentMethod: paymentMethod || "COD",
       cancelDeadline,
     };
 
@@ -50,14 +50,14 @@ exports.createOrder = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Order created successfully',
+      message: "Đơn hàng đã được tạo thành công",
       data: { order },
     });
   } catch (error) {
-    console.error('Create order error:', error);
+    console.error("Create order error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create order',
+      message: "Failed to create order",
       error: error.message,
     });
   }
@@ -66,6 +66,9 @@ exports.createOrder = async (req, res) => {
 // Get user's orders
 exports.getUserOrders = async (req, res) => {
   try {
+    // Auto confirm orders older than 30 minutes
+    await Order.autoConfirmOrders();
+
     const userId = req.user.id;
     const { page = 1, limit = 20, status } = req.query;
 
@@ -77,15 +80,15 @@ exports.getUserOrders = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Orders retrieved successfully',
+      message: "Orders retrieved successfully",
       data: result.orders,
       pagination: result.pagination,
     });
   } catch (error) {
-    console.error('Get orders error:', error);
+    console.error("Get orders error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve orders',
+      message: "Failed to retrieve orders",
       error: error.message,
     });
   }
@@ -94,6 +97,9 @@ exports.getUserOrders = async (req, res) => {
 // Get order by ID
 exports.getOrderById = async (req, res) => {
   try {
+    // Auto confirm orders older than 30 minutes
+    await Order.autoConfirmOrders();
+
     const { orderId } = req.params;
     const userId = req.user.id;
 
@@ -102,28 +108,28 @@ exports.getOrderById = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: 'Order not found',
+        message: "Order not found",
       });
     }
 
     // Check if user owns the order (unless admin)
-    if (order.userId !== userId && req.user.role !== 'ADMIN') {
+    if (order.userId !== userId && req.user.role !== "ADMIN") {
       return res.status(403).json({
         success: false,
-        message: 'Access denied',
+        message: "Access denied",
       });
     }
 
     res.json({
       success: true,
-      message: 'Order retrieved successfully',
+      message: "Order retrieved successfully",
       data: { order },
     });
   } catch (error) {
-    console.error('Get order error:', error);
+    console.error("Get order error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve order',
+      message: "Failed to retrieve order",
       error: error.message,
     });
   }
@@ -140,45 +146,45 @@ exports.cancelOrder = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: 'Order not found or cannot be cancelled',
+        message: "Không tìm thấy đơn hàng hoặc không thể hủy",
       });
     }
 
     res.json({
       success: true,
       message:
-        order.status === 'CANCEL_REQUESTED'
-          ? 'Cancellation request sent'
-          : 'Order cancelled successfully',
+        order.status === "CANCEL_REQUESTED"
+          ? "Đã gửi yêu cầu hủy đơn hàng"
+          : "Hủy đơn hàng thành công",
       data: { order },
     });
   } catch (error) {
-    console.error('Cancel order error:', error);
-    
-    if (error.message === 'Unauthorized') {
+    console.error("Cancel order error:", error);
+
+    if (error.message === "Unauthorized") {
       return res.status(403).json({
         success: false,
-        message: 'Access denied',
+        message: "Từ chối truy cập",
       });
     }
 
-    if (error.message === 'Cancel deadline has passed') {
+    if (error.message === "Cancel deadline has passed") {
       return res.status(400).json({
         success: false,
-        message: 'Cannot cancel order after 30 minutes',
+        message: "Không thể hủy đơn hàng sau 30 phút",
       });
     }
 
-    if (error.message === 'Cannot cancel order in current status') {
+    if (error.message === "Cannot cancel order in current status") {
       return res.status(400).json({
         success: false,
-        message: 'Order cannot be cancelled in current status',
+        message: "Không thể hủy đơn hàng ở trạng thái hiện tại",
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Failed to cancel order',
+      message: "Hủy đơn hàng thất bại",
       error: error.message,
     });
   }
@@ -203,7 +209,7 @@ exports.updateOrderStatus = async (req, res) => {
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status',
+        message: "Invalid status",
       });
     }
 
@@ -212,20 +218,20 @@ exports.updateOrderStatus = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: 'Order not found',
+        message: "Order not found",
       });
     }
 
     res.json({
       success: true,
-      message: 'Order status updated successfully',
+      message: "Order status updated successfully",
       data: { order },
     });
   } catch (error) {
-    console.error('Update order status error:', error);
+    console.error("Update order status error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update order status',
+      message: "Failed to update order status",
       error: error.message,
     });
   }
@@ -234,19 +240,19 @@ exports.updateOrderStatus = async (req, res) => {
 // Get order statistics
 exports.getOrderStats = async (req, res) => {
   try {
-    const userId = req.user.role === 'ADMIN' ? null : req.user.id;
+    const userId = req.user.role === "ADMIN" ? null : req.user.id;
     const stats = await Order.getStats(userId);
 
     res.json({
       success: true,
-      message: 'Order statistics retrieved successfully',
+      message: "Order statistics retrieved successfully",
       data: { stats },
     });
   } catch (error) {
-    console.error('Get order stats error:', error);
+    console.error("Get order stats error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve order statistics',
+      message: "Failed to retrieve order statistics",
       error: error.message,
     });
   }

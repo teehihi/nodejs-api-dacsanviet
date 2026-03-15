@@ -8,9 +8,10 @@ const productController = {
 
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 12;
-            const offset = (page - 1) * limit;
+            const queryOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
+            const offset = queryOffset !== null && !isNaN(queryOffset) ? queryOffset : (page - 1) * limit;
 
-            console.log('📊 Parsed params:', { page, limit, offset });
+            console.log('📊 Parsed params:', { page, limit, offset, queryOffset });
 
             const filters = {
                 q: req.query.q,
@@ -134,7 +135,8 @@ const productController = {
     getDiscountedProducts: async (req, res) => {
         try {
             const limit = parseInt(req.query.limit) || 20;
-            const products = await Product.getDiscountedProducts(limit);
+            const offset = parseInt(req.query.offset) || 0;
+            const products = await Product.getDiscountedProducts(limit, offset);
             res.json({
                 success: true,
                 data: products

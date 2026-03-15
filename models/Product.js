@@ -40,8 +40,12 @@ class Product {
 
             // Filter by category
             if (category && category !== 'All') {
-                query += ` AND c.name = ?`;
-                params.push(category);
+                const ids = category.split(',').map(id => id.trim()).filter(id => id);
+                if (ids.length > 0) {
+                    const placeholders = ids.map(() => '?').join(',');
+                    query += ` AND p.category_id IN (${placeholders})`;
+                    params.push(...ids);
+                }
             }
 
             // Sorting
