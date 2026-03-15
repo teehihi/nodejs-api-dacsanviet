@@ -8,13 +8,16 @@ class Order {
       await connection.beginTransaction();
 
       const {
-        id,
         userId,
         items,
         totalAmount,
         shippingAddress,
         paymentMethod,
         cancelDeadline,
+        note,
+        couponCode = null,
+        discountAmount = 0,
+        pointsUsed = 0,
       } = orderData;
 
       // Create full address string
@@ -32,7 +35,6 @@ class Order {
           payment_method, status, order_date, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?)`,
         [
-          id,
           userId,
           totalAmount,
           shippingAddress.fullName,
@@ -69,7 +71,7 @@ class Order {
       }
 
       await connection.commit();
-      return await this.findById(id);
+      return await this.findById(newOrderId);
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -169,24 +171,18 @@ class Order {
     let query = `UPDATE orders SET ${fields} WHERE order_number = ?`;
     const params = [...values, orderId];
 
-    // If userId provided, ensure user owns the order
     if (userId) {
       query += ` AND user_id = ?`;
       params.push(userId);
     }
 
     const [result] = await pool.query(query, params);
-
-    if (result.affectedRows === 0) {
-      return null;
-    }
-
+    if (result.affectedRows === 0) return null;
     return await this.findById(orderId);
   }
 
   // Cancel order
   static async cancel(orderId, userId) {
-    // Check if order can be cancelled
     const order = await this.findById(orderId);
     if (!order) return null;
 
@@ -216,6 +212,41 @@ class Order {
     }
 
     throw new Error("Cannot cancel order in current status");
+  }
+
+  // Find ALL orders (admin)
+  static async findAll(options = {}) {
+    const { page = 1, limit = 20, status } = options;
+    const offset = (page - 1) * limit;
+
+    let query = `SELECT o.*, u.username, u.email, u.full_name as user_full_name
+      FROM orders o LEFT JOIN users u ON o.user_id = u.id`;
+    const params = [];
+
+    if (status) {
+      query += ` WHERE o.status = ?`;
+      params.push(status);
+    }
+    query += ` ORDER BY o.created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const [orders] = await pool.query(query, params);
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const [items] = await pool.query(`SELECT * FROM order_items WHERE order_id = ?`, [order.id]);
+        return this.formatOrder(order, items);
+      })
+    );
+
+    const countQuery = status
+      ? `SELECT COUNT(*) as total FROM orders WHERE status = ?`
+      : `SELECT COUNT(*) as total FROM orders`;
+    const [countResult] = await pool.query(countQuery, status ? [status] : []);
+
+    return {
+      orders: ordersWithItems,
+      pagination: { page, limit, totalItems: countResult[0].total, totalPages: Math.ceil(countResult[0].total / limit) },
+    };
   }
 
   // Get order statistics
@@ -259,6 +290,8 @@ class Order {
     return {
       id: order.order_number,
       userId: order.user_id,
+      userEmail: order.email,
+      userFullName: order.user_full_name,
       items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,
@@ -277,7 +310,11 @@ class Order {
         city: addressParts[3] || "",
         note: order.notes || "",
       },
+      couponCode: order.coupon_code || null,
+      discountAmount: parseFloat(order.discount_amount || 0),
+      pointsUsed: parseInt(order.points_used || 0),
       paymentMethod: order.payment_method,
+      carrierName: order.carrier_name || null,
       status: order.status,
       createdAt: order.created_at,
       confirmedAt: order.status === "CONFIRMED" ? order.updated_at : null,

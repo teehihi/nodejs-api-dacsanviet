@@ -4,13 +4,17 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 
 // Import database và routes
-const { initializeDatabase, getDatabaseInfo } = require('./config/database');
+const { initializeDatabase, pool } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const sessionRoutes = require('./routes/sessions');
 const profileRoutes = require('./routes/profile');
 const productRoutes = require('./routes/products');
 const orderRoutes = require('./routes/orders');
+const reviewRoutes = require('./routes/reviews');
+const favoriteRoutes = require('./routes/favorites');
+const couponRoutes = require('./routes/coupons');
+const loyaltyPointsRoutes = require('./routes/loyaltyPoints');
 const User = require('./models/User');
 const Session = require('./models/Session');
 const OTP = require('./models/OTP');
@@ -40,6 +44,10 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/loyalty-points', loyaltyPointsRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {
@@ -67,6 +75,10 @@ app.get('/', async (req, res) => {
         sessions: 'GET /api/sessions',
         products: 'GET /api/products',
         orders: 'GET /api/orders',
+        reviews: 'GET /api/reviews',
+        favorites: 'GET /api/favorites',
+        coupons: 'GET /api/coupons',
+        loyaltyPoints: 'GET /api/loyalty-points',
         register: 'POST /api/auth/register',
         registerWithOTP: 'POST /api/auth/send-registration-otp + POST /api/auth/verify-registration-otp',
         login: 'POST /api/auth/login',
@@ -220,6 +232,27 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+// ⏰ Auto-confirm orders after 30 minutes (theo yêu cầu đề bài)
+const autoConfirmOrders = async () => {
+  try {
+    const [result] = await pool.execute(`
+      UPDATE orders 
+      SET status = 'CONFIRMED', updated_at = NOW()
+      WHERE status = 'NEW' 
+        AND TIMESTAMPDIFF(MINUTE, created_at, NOW()) >= 30
+    `);
+    if (result.affectedRows > 0) {
+      console.log(`⏰ Auto-confirmed ${result.affectedRows} order(s) after 30 minutes`);
+    }
+  } catch (error) {
+    console.error('❌ Auto-confirm error:', error.message);
+  }
+};
+
+// Chạy auto-confirm mỗi 5 phút
+setInterval(autoConfirmOrders, 5 * 60 * 1000);
+console.log('⏰ Auto-confirm scheduler started (runs every 5 minutes)');
 
 // Graceful shutdown
 process.on('SIGINT', () => {

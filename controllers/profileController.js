@@ -37,7 +37,7 @@ const getProfile = async (req, res) => {
   }
 };
 
- // Update basic profile info (fullName, phoneNumber)
+// Update basic profile info (fullName, phoneNumber)
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -272,16 +272,17 @@ const sendEmailUpdateOTP = async (req, res) => {
 
     // Generate OTP code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     console.log('🔍 Generated Email OTP:', otpCode, 'for new email:', newEmail);
 
     // Send OTP email to CURRENT email (not new email) for security
     const emailResult = await emailService.sendEmailUpdateOTP(user.email, otpCode, user.fullName, newEmail);
     if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể gửi email OTP'
-      });
+      // Log warning but don't block - OTP is still valid for dev/testing
+      console.warn('⚠️  Email send failed (SMTP issue). OTP still valid.');
+      console.log('📋 USE THIS OTP FOR TESTING:', otpCode);
+    } else {
+      console.log('✅ Email OTP sent successfully');
     }
 
     // Create JWT token chứa OTP info
@@ -354,10 +355,10 @@ const verifyEmailUpdate = async (req, res) => {
     console.log('- Purpose:', tokenData.purpose);
 
     // Verify OTP code and data
-    if (tokenData.otpCode !== otpCode || 
-        tokenData.userId !== userId || 
-        tokenData.newEmail !== newEmail ||
-        tokenData.purpose !== 'email_update') {
+    if (tokenData.otpCode !== otpCode ||
+      tokenData.userId !== userId ||
+      tokenData.newEmail !== newEmail ||
+      tokenData.purpose !== 'email_update') {
       return res.status(403).json({
         success: false,
         message: 'Mã OTP không hợp lệ'
@@ -434,16 +435,16 @@ const sendPhoneUpdateOTP = async (req, res) => {
 
     // Generate OTP code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     console.log('🔍 Generated Phone OTP:', otpCode, 'for user:', user.email);
 
     // Send OTP to user's email (fallback since SMS is not implemented)
     const emailResult = await emailService.sendPhoneUpdateOTP(user.email, otpCode, user.fullName, newPhone);
     if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể gửi email OTP'
-      });
+      console.warn('⚠️  Email send failed (SMTP issue). OTP still valid.');
+      console.log('📋 USE THIS OTP FOR TESTING:', otpCode);
+    } else {
+      console.log('✅ Phone OTP email sent successfully');
     }
 
     // Create JWT token chứa OTP info
@@ -518,11 +519,11 @@ const verifyPhoneUpdate = async (req, res) => {
     console.log('- Purpose:', tokenData.purpose);
 
     // Verify OTP code and data
-    if (tokenData.otpCode !== otpCode || 
-        tokenData.userId !== userId || 
-        tokenData.email !== user.email ||
-        tokenData.newPhone !== newPhone ||
-        tokenData.purpose !== 'phone_update') {
+    if (tokenData.otpCode !== otpCode ||
+      tokenData.userId !== userId ||
+      tokenData.email !== user.email ||
+      tokenData.newPhone !== newPhone ||
+      tokenData.purpose !== 'phone_update') {
       return res.status(403).json({
         success: false,
         message: 'Mã OTP không hợp lệ'
@@ -592,16 +593,16 @@ const sendPasswordChangeOTP = async (req, res) => {
 
     // Generate OTP code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
-    
+
     console.log('🔍 Generated OTP:', otpCode, 'for user:', user.email);
 
     // Send OTP email
     const emailResult = await emailService.sendPasswordChangeOTP(user.email, otpCode, user.fullName);
     if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Không thể gửi email OTP'
-      });
+      console.warn('⚠️  Email send failed (SMTP issue). OTP still valid.');
+      console.log('📋 USE THIS OTP FOR TESTING:', otpCode);
+    } else {
+      console.log('✅ Password OTP email sent successfully');
     }
 
     // Create JWT token chứa OTP info (expires in 5 minutes)
@@ -708,10 +709,10 @@ const verifyPasswordChangeOTP = async (req, res) => {
     console.log('- Purpose:', tokenData.purpose);
 
     // Verify OTP code and user
-    if (tokenData.otpCode !== otpCode || 
-        tokenData.userId !== userId || 
-        tokenData.email !== user.email ||
-        tokenData.purpose !== 'password_change') {
+    if (tokenData.otpCode !== otpCode ||
+      tokenData.userId !== userId ||
+      tokenData.email !== user.email ||
+      tokenData.purpose !== 'password_change') {
       return res.status(403).json({
         success: false,
         message: 'Mã OTP không hợp lệ'

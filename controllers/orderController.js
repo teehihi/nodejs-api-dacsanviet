@@ -1,8 +1,12 @@
-const Order = require("../models/Order");
-const { validationResult } = require("express-validator");
+const Order = require('../models/Order');
+const Coupon = require('../models/Coupon');
+const LoyaltyPoints = require('../models/LoyaltyPoints');
+const { pool } = require('../config/database');
+const { validationResult } = require('express-validator');
 
 // Create new order
 exports.createOrder = async (req, res) => {
+  let connection;
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -14,7 +18,7 @@ exports.createOrder = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { items, shippingAddress, paymentMethod } = req.body;
+    const { items, shippingAddress, paymentMethod, note, couponCode, pointsToUse } = req.body;
 
     // Validate items
     if (!items || items.length === 0) {
@@ -25,28 +29,72 @@ exports.createOrder = async (req, res) => {
     }
 
     // Calculate total amount
-    const totalAmount = items.reduce(
+    let totalAmount = items.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
     );
 
-    // Generate order ID
-    const orderId = `ORD${Date.now()}`;
+    let finalAmount = totalAmount;
+    let discountAmount = 0;
+    let couponId = null;
+    let pointsUsedValue = 0;
+
+    // Process Coupon
+    if (couponCode) {
+      const validation = await Coupon.validate(couponCode, userId, totalAmount);
+      if (validation.isValid) {
+        discountAmount += validation.discountAmount;
+        couponId = validation.couponId;
+      }
+    }
+
+    // Process Points
+    if (pointsToUse && parseInt(pointsToUse) > 0) {
+      const parsedPoints = parseInt(pointsToUse);
+      const balance = await LoyaltyPoints.getBalance(userId);
+      if (balance.current_balance < parsedPoints) {
+        return res.status(400).json({ success: false, message: 'Không đủ điểm để sử dụng' });
+      }
+      pointsUsedValue = parsedPoints;
+      discountAmount += parsedPoints; // 1 point = 1 VND
+    }
+
+    finalAmount = totalAmount - discountAmount;
+    if (finalAmount < 0) finalAmount = 0;
 
     // Set cancel deadline (30 minutes from now)
     const cancelDeadline = new Date(Date.now() + 30 * 60 * 1000);
 
     const orderData = {
-      id: orderId,
       userId,
       items,
-      totalAmount,
+      totalAmount: finalAmount,
       shippingAddress,
       paymentMethod: paymentMethod || "COD",
       cancelDeadline,
+      note,
+      couponCode,
+      discountAmount,
+      pointsUsed: pointsUsedValue
     };
 
     const order = await Order.create(orderData);
+
+    // Apply coupon and points
+    if (couponId || pointsUsedValue > 0) {
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      if (couponId) {
+        await Coupon.apply(connection, couponId, userId, order.id, discountAmount - pointsUsedValue);
+      }
+      if (pointsUsedValue > 0) {
+        await LoyaltyPoints.usePoints(connection, userId, pointsUsedValue, order.id);
+      }
+
+      await connection.commit();
+      connection.release();
+    }
 
     res.status(201).json({
       success: true,
@@ -54,7 +102,10 @@ exports.createOrder = async (req, res) => {
       data: { order },
     });
   } catch (error) {
-    console.error("Create order error:", error);
+    if (connection) {
+      try { await connection.rollback(); connection.release(); } catch (e) { }
+    }
+    console.error('Create order error:', error);
     res.status(500).json({
       success: false,
       message: "Failed to create order",
@@ -159,9 +210,9 @@ exports.cancelOrder = async (req, res) => {
       data: { order },
     });
   } catch (error) {
-    console.error("Cancel order error:", error);
+    console.error('Cancel order error:', error);
 
-    if (error.message === "Unauthorized") {
+    if (error.message === 'Unauthorized') {
       return res.status(403).json({
         success: false,
         message: "Từ chối truy cập",
@@ -194,32 +245,39 @@ exports.cancelOrder = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status } = req.body;
+    const { status, carrierName } = req.body;
 
     const validStatuses = [
-      'NEW',
-      'CONFIRMED',
-      'PREPARING',
-      'SHIPPING',
-      'DELIVERED',
-      'CANCELLED',
-      'CANCEL_REQUESTED',
+      'NEW', 'CONFIRMED', 'PREPARING', 'SHIPPING',
+      'DELIVERED', 'CANCELLED', 'CANCEL_REQUESTED',
     ];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
-        success: false,
-        message: "Invalid status",
+        success: false, message: 'Invalid status',
       });
     }
 
-    const order = await Order.updateStatus(orderId, status);
+    // Reward points logic when delivered
+    const oldOrder = await Order.findById(orderId);
+
+    const order = await Order.updateStatus(orderId, status, null, carrierName);
 
     if (!order) {
       return res.status(404).json({
-        success: false,
-        message: "Order not found",
+        success: false, message: 'Order not found',
       });
+    }
+
+    if (oldOrder && oldOrder.status !== 'DELIVERED' && status === 'DELIVERED') {
+      try {
+        const connection = await pool.getConnection();
+        const pointsEarned = Math.floor(parseFloat(order.totalAmount) / 1000); // 1 point per 1000 VND
+        await LoyaltyPoints.addPoints(connection, order.userId, pointsEarned, 'EARN_PURCHASE', 'Tặng điểm mua hàng', order.id);
+        connection.release();
+      } catch (err) {
+        console.error('Failed to reward points:', err.message);
+      }
     }
 
     res.json({
@@ -232,6 +290,31 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update order status",
+      error: error.message,
+    });
+  }
+};
+
+// Get ALL orders - Admin only
+exports.getAllOrders = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const result = await Order.findAll({
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status,
+    });
+    res.json({
+      success: true,
+      message: 'All orders retrieved successfully',
+      data: result.orders,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    console.error('Get all orders error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve orders',
       error: error.message,
     });
   }

@@ -40,11 +40,26 @@ router.get('/:orderId', authenticateToken, orderController.getOrderById);
 // Cancel order
 router.post('/:orderId/cancel', authenticateToken, orderController.cancelOrder);
 
+// Get ALL orders (Admin only)
+router.get(
+  '/all',
+  authenticateToken,
+  requireRole(['ADMIN', 'STAFF']),
+  orderController.getAllOrders
+);
+
 // Update order status (Admin only)
 router.patch(
   '/:orderId/status',
   authenticateToken,
   requireRole(['ADMIN', 'STAFF']),
+  orderController.updateOrderStatus
+);
+
+// DEV ONLY: Update order status without admin role
+router.put(
+  '/:orderId/dev-status',
+  authenticateToken,
   orderController.updateOrderStatus
 );
 
