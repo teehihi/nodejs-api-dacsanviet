@@ -1,6 +1,8 @@
 const Order = require('../models/Order');
 const Coupon = require('../models/Coupon');
 const LoyaltyPoints = require('../models/LoyaltyPoints');
+const Notification = require('../models/Notification');
+const { notifyUser, notifyAdmin } = require('../socket/socketManager');
 const { pool } = require('../config/database');
 const { validationResult } = require('express-validator');
 
@@ -101,6 +103,19 @@ exports.createOrder = async (req, res) => {
       message: 'Order created successfully',
       data: { order },
     });
+
+    // Notify user + admin after response
+    try {
+      const notif = await Notification.create({
+        userId,
+        type: 'ORDER_NEW',
+        title: 'Đặt hàng thành công',
+        body: `Đơn hàng ${order.id} đã được đặt. Chúng tôi sẽ xác nhận sớm.`,
+        data: { orderId: order.id },
+      });
+      notifyUser(userId, 'notification', notif);
+      notifyAdmin('new_order', { orderId: order.id, userId, totalAmount: finalAmount });
+    } catch (e) { console.error('Notify error:', e.message); }
   } catch (error) {
     if (connection) {
       try { await connection.rollback(); connection.release(); } catch (e) { }
@@ -279,6 +294,27 @@ exports.updateOrderStatus = async (req, res) => {
       message: 'Order status updated successfully',
       data: { order },
     });
+
+    // Notify user about status change
+    try {
+      const labels = {
+        CONFIRMED: 'Đơn hàng đã được xác nhận',
+        SHIPPING: 'Đơn hàng đang được giao',
+        DELIVERED: 'Đơn hàng đã giao thành công',
+        CANCELLED: 'Đơn hàng đã bị hủy',
+      };
+      const label = labels[status];
+      if (label && order.userId) {
+        const notif = await Notification.create({
+          userId: order.userId,
+          type: `ORDER_${status}`,
+          title: label,
+          body: `Đơn hàng ${order.id} - ${label.toLowerCase()}.`,
+          data: { orderId: order.id, status },
+        });
+        notifyUser(order.userId, 'notification', notif);
+      }
+    } catch (e) { console.error('Notify error:', e.message); }
   } catch (error) {
     console.error('Update order status error:', error);
     res.status(500).json({

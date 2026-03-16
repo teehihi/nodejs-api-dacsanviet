@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
@@ -15,6 +16,9 @@ const reviewRoutes = require('./routes/reviews');
 const favoriteRoutes = require('./routes/favorites');
 const couponRoutes = require('./routes/coupons');
 const loyaltyPointsRoutes = require('./routes/loyaltyPoints');
+const notificationRoutes = require('./routes/notifications');
+const { initSocket, notifyUser, notifyAdmin } = require('./socket/socketManager');
+const Notification = require('./models/Notification');
 const User = require('./models/User');
 const Session = require('./models/Session');
 const OTP = require('./models/OTP');
@@ -23,6 +27,7 @@ const OTP = require('./models/OTP');
 const { generalLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
@@ -47,6 +52,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/loyalty-points', loyaltyPointsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {
@@ -212,8 +218,14 @@ const startServer = async () => {
       process.exit(1);
     }
 
+    // Init socket
+    initSocket(httpServer);
+
+    // Ensure notifications table
+    await Notification.ensureTable();
+
     // Start server
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
       console.log(`API Documentation: http://localhost:${PORT}`);
       console.log(`Auth endpoints: http://localhost:${PORT}/api/auth`);
@@ -243,6 +255,20 @@ const autoConfirmOrders = async () => {
     `);
     if (result.affectedRows > 0) {
       console.log(`⏰ Auto-confirmed ${result.affectedRows} order(s) after 30 minutes`);
+      // Notify each affected user
+      const [orders] = await pool.query(
+        `SELECT id, user_id, order_number FROM orders WHERE status = 'CONFIRMED' AND TIMESTAMPDIFF(MINUTE, updated_at, NOW()) < 1`
+      );
+      for (const o of orders) {
+        const notif = await Notification.create({
+          userId: o.user_id,
+          type: 'ORDER_CONFIRMED',
+          title: 'Đơn hàng đã xác nhận',
+          body: `Đơn hàng ${o.order_number} đã được xác nhận tự động.`,
+          data: { orderId: o.order_number },
+        });
+        notifyUser(o.user_id, 'notification', notif);
+      }
     }
   } catch (error) {
     console.error('❌ Auto-confirm error:', error.message);

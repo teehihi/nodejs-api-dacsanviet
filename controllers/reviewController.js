@@ -1,4 +1,6 @@
 const Review = require('../models/Review');
+const Notification = require('../models/Notification');
+const { notifyAdmin } = require('../socket/socketManager');
 const { validationResult } = require('express-validator');
 
 exports.createReview = async (req, res) => {
@@ -17,6 +19,18 @@ exports.createReview = async (req, res) => {
             message: 'Đánh giá sản phẩm thành công',
             data: review
         });
+
+        // Notify admin about new review
+        try {
+            const notif = await Notification.create({
+                userId: null, // broadcast to admin
+                type: 'NEW_REVIEW',
+                title: 'Đánh giá mới',
+                body: `Có đánh giá ${rating} sao mới cho sản phẩm #${productId}.`,
+                data: { productId, rating, reviewId: review.id },
+            });
+            notifyAdmin('new_review', notif);
+        } catch (e) { console.error('Notify error:', e.message); }
     } catch (error) {
         console.error('Create review error:', error);
         res.status(400).json({

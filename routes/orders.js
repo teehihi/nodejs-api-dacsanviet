@@ -34,6 +34,17 @@ router.get('/', authenticateToken, orderController.getUserOrders);
 // Get order statistics
 router.get('/stats', authenticateToken, orderController.getOrderStats);
 
+// Get spending statistics (cash flow)
+router.get('/spending-stats', authenticateToken, async (req, res) => {
+  try {
+    const Order = require('../models/Order');
+    const stats = await Order.getSpendingStats(req.user.id);
+    res.json({ success: true, data: stats });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Get order by ID
 router.get('/:orderId', authenticateToken, orderController.getOrderById);
 
