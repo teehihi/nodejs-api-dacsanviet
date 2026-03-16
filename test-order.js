@@ -7,9 +7,9 @@
  * 
  * Ví dụ:
  *   node test-order.js list
- *   node test-order.js update ORD1772895130057 PREPARING
- *   node test-order.js update ORD1772895130057 SHIPPING
- *   node test-order.js update ORD1772895130057 DELIVERED
+ *   node test-order.js update ORD1773642244594359 PREPARING
+ *   node test-order.js update ORD1773642244594359 SHIPPING
+ *   node test-order.js update ORD1773642244594359 DELIVERED
  * 
  * Các trạng thái hợp lệ:
  *   NEW              → Đơn hàng mới

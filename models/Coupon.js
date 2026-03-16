@@ -71,6 +71,20 @@ class Coupon {
         );
     }
 
+    static async refund(connection, couponId, userId, orderId) {
+        // Remove usage record
+        await connection.query(
+            'DELETE FROM coupon_usages WHERE coupon_id = ? AND user_id = ? AND order_id = ?',
+            [couponId, userId, orderId]
+        );
+
+        // Decrement used count
+        await connection.query(
+            'UPDATE coupons SET used_count = GREATEST(0, used_count - 1) WHERE id = ?',
+            [couponId]
+        );
+    }
+
     static async getUserCoupons(userId) {
         const [rows] = await pool.query(`
       SELECT * FROM coupons 

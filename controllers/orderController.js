@@ -1,6 +1,8 @@
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const Coupon = require('../models/Coupon');
 const LoyaltyPoints = require('../models/LoyaltyPoints');
+const Review = require('../models/Review');
 const { pool } = require('../config/database');
 const { validationResult } = require('express-validator');
 
@@ -86,10 +88,10 @@ exports.createOrder = async (req, res) => {
       await connection.beginTransaction();
 
       if (couponId) {
-        await Coupon.apply(connection, couponId, userId, order.id, discountAmount - pointsUsedValue);
+        await Coupon.apply(connection, couponId, userId, parseInt(order.numericId), discountAmount - pointsUsedValue);
       }
       if (pointsUsedValue > 0) {
-        await LoyaltyPoints.usePoints(connection, userId, pointsUsedValue, order.id);
+        await LoyaltyPoints.usePoints(connection, userId, pointsUsedValue, parseInt(order.numericId));
       }
 
       await connection.commit();
@@ -148,7 +150,6 @@ exports.getUserOrders = async (req, res) => {
 // Get order by ID
 exports.getOrderById = async (req, res) => {
   try {
-    // Auto confirm orders older than 30 minutes
     await Order.autoConfirmOrders();
 
     const { orderId } = req.params;
@@ -157,87 +158,106 @@ exports.getOrderById = async (req, res) => {
     const order = await Order.findById(orderId);
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    if (order.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    // Check if user owns the order (unless admin)
-    if (order.userId !== userId && req.user.role !== "ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied",
-      });
+    // Attach review status for DELIVERED orders
+    let reviewStatus = null;
+    if (order.status === 'DELIVERED' && order.numericId) {
+      reviewStatus = await Review.getOrderReviewStatus(userId, order.numericId);
     }
 
     res.json({
       success: true,
-      message: "Order retrieved successfully",
-      data: { order },
+      message: 'Order retrieved successfully',
+      data: { order, reviewStatus },
     });
   } catch (error) {
-    console.error("Get order error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to retrieve order",
-      error: error.message,
-    });
+    console.error('Get order error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve order', error: error.message });
   }
 };
 
 // Cancel order
 exports.cancelOrder = async (req, res) => {
+  let connection;
   try {
     const { orderId } = req.params;
     const userId = req.user.id;
 
-    const order = await Order.cancel(orderId, userId);
-
+    // Get order details first to check status and rewards
+    const order = await Order.findById(orderId);
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy đơn hàng hoặc không thể hủy",
-      });
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
     }
+
+    if (order.userId !== userId) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    // Check if directly cancellable (NEW or CONFIRMED)
+    const isDirectlyCancellable = ["NEW", "CONFIRMED"].includes(order.status);
+    
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Perform the cancellation status update within the transaction
+    const updatedOrder = await Order.cancel(orderId, userId, connection);
+
+    // If it's now CANCELLED and it wasn't shipped yet, refund rewards
+    // This handles the < 30mins immediate cancel case
+    if (updatedOrder && updatedOrder.status === "CANCELLED") {
+      const preShippingStatuses = ["NEW", "CONFIRMED", "PREPARING"];
+      if (preShippingStatuses.includes(order.status)) {
+        console.log(`Auto-refunding rewards for user cancel: ${orderId}`);
+        
+        if (order.couponCode) {
+          const [couponRows] = await connection.query('SELECT id FROM coupons WHERE code = ?', [order.couponCode]);
+          if (couponRows.length > 0) {
+            await Coupon.refund(connection, couponRows[0].id, userId, order.numericId);
+          }
+        }
+
+        if (order.pointsUsed > 0) {
+          await LoyaltyPoints.refundPoints(connection, userId, order.pointsUsed, order.numericId);
+        }
+      }
+    }
+
+    await connection.commit();
 
     res.json({
       success: true,
-      message:
-        order.status === "CANCEL_REQUESTED"
-          ? "Đã gửi yêu cầu hủy đơn hàng"
-          : "Hủy đơn hàng thành công",
-      data: { order },
+      message: updatedOrder.status === "CANCEL_REQUESTED"
+        ? "Đã gửi yêu cầu hủy đơn hàng"
+        : "Hủy đơn hàng thành công",
+      data: { order: updatedOrder },
     });
   } catch (error) {
+    if (connection) await connection.rollback();
     console.error('Cancel order error:', error);
 
     if (error.message === 'Unauthorized') {
-      return res.status(403).json({
-        success: false,
-        message: "Từ chối truy cập",
-      });
+      return res.status(403).json({ success: false, message: "Từ chối truy cập" });
     }
 
     if (error.message === "Cancel deadline has passed") {
-      return res.status(400).json({
-        success: false,
-        message: "Không thể hủy đơn hàng sau 30 phút",
-      });
+      return res.status(400).json({ success: false, message: "Không thể hủy đơn hàng sau 30 phút" });
     }
 
     if (error.message === "Cannot cancel order in current status") {
-      return res.status(400).json({
-        success: false,
-        message: "Không thể hủy đơn hàng ở trạng thái hiện tại",
-      });
+      return res.status(400).json({ success: false, message: "Không thể hủy đơn hàng ở trạng thái hiện tại" });
     }
 
     res.status(500).json({
       success: false,
-      message: "Hủy đơn hàng thất bại",
-      error: error.message,
+      message: error.message || "Hủy đơn hàng thất bại",
     });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
@@ -253,43 +273,95 @@ exports.updateOrderStatus = async (req, res) => {
     ];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false, message: 'Invalid status',
-      });
+      return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
-    // Reward points logic when delivered
     const oldOrder = await Order.findById(orderId);
-
-    const order = await Order.updateStatus(orderId, status, null, carrierName);
+    const order    = await Order.updateStatus(orderId, status, null, carrierName);
 
     if (!order) {
-      return res.status(404).json({
-        success: false, message: 'Order not found',
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    // When transitioning to DELIVERED:
     if (oldOrder && oldOrder.status !== 'DELIVERED' && status === 'DELIVERED') {
+      let connection;
       try {
-        const connection = await pool.getConnection();
-        const pointsEarned = Math.floor(parseFloat(order.totalAmount) / 1000); // 1 point per 1000 VND
-        await LoyaltyPoints.addPoints(connection, order.userId, pointsEarned, 'EARN_PURCHASE', 'Tặng điểm mua hàng', order.id);
-        connection.release();
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        // 1. Stamp delivered_at on the order row
+        await connection.query(
+          `UPDATE orders SET delivered_at = NOW() WHERE order_number = ?`,
+          [orderId]
+        );
+
+        // 2. Award purchase points (1 pt per 1 000 VND)
+        const pointsEarned = Math.floor(parseFloat(order.totalAmount) / 1000);
+        if (pointsEarned > 0) {
+          await LoyaltyPoints.addPoints(
+            connection, order.userId, pointsEarned,
+            'EARN_PURCHASE', 'Tặng điểm mua hàng', order.numericId
+          );
+        }
+
+        await connection.commit();
       } catch (err) {
-        console.error('Failed to reward points:', err.message);
+        if (connection) await connection.rollback();
+        console.error('Failed to stamp delivered_at / reward points:', err.message);
+      } finally {
+        if (connection) connection.release();
+      }
+    }
+
+    // When transitioning to CANCELLED (Refund rewards):
+    if (oldOrder && oldOrder.status !== 'CANCELLED' && status === 'CANCELLED') {
+      // Only refund if the order WAS NOT shipped/delivered
+      const preShippingStatuses = ["NEW", "CONFIRMED", "PREPARING", "CANCEL_REQUESTED"];
+      
+      if (preShippingStatuses.includes(oldOrder.status)) {
+        let connection;
+        try {
+          connection = await pool.getConnection();
+          await connection.beginTransaction();
+
+          console.log(`Auto-refunding rewards for Admin cancel: ${orderId}`);
+          
+          // Refund Coupon
+          if (oldOrder.couponCode) {
+            const [couponRows] = await connection.query('SELECT id FROM coupons WHERE code = ?', [oldOrder.couponCode]);
+            if (couponRows.length > 0) {
+              await Coupon.refund(connection, couponRows[0].id, oldOrder.userId, oldOrder.numericId);
+            }
+          }
+
+          // Refund Points
+          if (oldOrder.pointsUsed > 0) {
+              await LoyaltyPoints.refundPoints(connection, oldOrder.userId, oldOrder.pointsUsed, oldOrder.numericId);
+          }
+
+          await connection.commit();
+        } catch (err) {
+          if (connection) await connection.rollback();
+          console.error('Failed to auto-refund on admin cancel:', err.message);
+        } finally {
+          if (connection) connection.release();
+        }
+      } else {
+        console.log(`Order ${orderId} was already in ${oldOrder.status} status. No reward refund.`);
       }
     }
 
     res.json({
       success: true,
-      message: "Order status updated successfully",
+      message: 'Order status updated successfully',
       data: { order },
     });
   } catch (error) {
-    console.error("Update order status error:", error);
+    console.error('Update order status error:', error);
     res.status(500).json({
       success: false,
-      message: "Failed to update order status",
+      message: 'Failed to update order status',
       error: error.message,
     });
   }

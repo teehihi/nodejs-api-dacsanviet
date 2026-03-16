@@ -188,7 +188,7 @@ const ensureApiTables = async () => {
       const [orderCols] = await pool.execute(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'orders' AND COLUMN_NAME IN ('coupon_code', 'discount_amount', 'points_used')
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'orders' AND COLUMN_NAME IN ('coupon_code', 'discount_amount', 'points_used', 'confirmed_at', 'cancelled_at', 'delivered_at')
       `, [dbConfig.database]);
 
       const existingCols = orderCols.map(c => c.COLUMN_NAME);
@@ -204,6 +204,18 @@ const ensureApiTables = async () => {
       if (!existingCols.includes('points_used')) {
         await pool.execute('ALTER TABLE orders ADD COLUMN points_used INT DEFAULT 0');
         console.log('Added points_used column to orders');
+      }
+      if (!existingCols.includes('confirmed_at')) {
+        await pool.execute('ALTER TABLE orders ADD COLUMN confirmed_at TIMESTAMP NULL');
+        console.log('Added confirmed_at column to orders');
+      }
+      if (!existingCols.includes('cancelled_at')) {
+        await pool.execute('ALTER TABLE orders ADD COLUMN cancelled_at TIMESTAMP NULL');
+        console.log('Added cancelled_at column to orders');
+      }
+      if (!existingCols.includes('delivered_at')) {
+        await pool.execute('ALTER TABLE orders ADD COLUMN delivered_at TIMESTAMP NULL');
+        console.log('Added delivered_at column to orders');
       }
     } catch (orderAltError) {
       console.error('Error altering orders table:', orderAltError.message);
@@ -239,55 +251,70 @@ const ensureApiTables = async () => {
       console.log('Product Reviews table already exists');
     }
 
-    // Kiểm tra và tạo bảng loyalty_points
+    // Loyalty Points (Updated for Expiry)
     const [lpTables] = await pool.execute(`
-      SELECT TABLE_NAME 
-      FROM INFORMATION_SCHEMA.TABLES 
+      SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'loyalty_points'
     `, [dbConfig.database]);
 
     if (lpTables.length === 0) {
-      const createLPTable = `
-        CREATE TABLE loyalty_points (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT UNIQUE NOT NULL,
-          total_points INT DEFAULT 0,
-          used_points INT DEFAULT 0,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          INDEX idx_user_id (user_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `;
-      await pool.execute(createLPTable);
-      console.log('Loyalty Points table created');
+        await pool.execute(`
+          CREATE TABLE loyalty_points (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL UNIQUE,
+            points_balance INT DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_user_id (user_id)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+        console.log('Loyalty Points table created');
     } else {
-      console.log('Loyalty Points table already exists');
+        const [cols] = await pool.execute(`
+          SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'loyalty_points' AND COLUMN_NAME = 'total_points'
+        `, [dbConfig.database]);
+        if (cols.length > 0) {
+            await pool.execute('ALTER TABLE loyalty_points DROP COLUMN total_points, DROP COLUMN used_points');
+            await pool.execute('ALTER TABLE loyalty_points ADD COLUMN points_balance INT DEFAULT 0');
+            console.log('Loyalty Points table updated to new schema');
+        }
     }
 
-    // Kiểm tra và tạo bảng point_transactions
     const [ptTables] = await pool.execute(`
-      SELECT TABLE_NAME 
-      FROM INFORMATION_SCHEMA.TABLES 
+      SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'point_transactions'
     `, [dbConfig.database]);
 
     if (ptTables.length === 0) {
-      const createPTTable = `
-        CREATE TABLE point_transactions (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          points INT NOT NULL,
-          type ENUM('EARN_REVIEW', 'EARN_PURCHASE', 'SPEND_ORDER') NOT NULL,
-          description VARCHAR(255),
-          ref_id INT, -- Có thể là order_id hoặc review_id
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_user_id (user_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `;
-      await pool.execute(createPTTable);
-      console.log('Point Transactions table created');
+        await pool.execute(`
+          CREATE TABLE point_transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            points INT NOT NULL,
+            remaining_points INT NOT NULL DEFAULT 0,
+            type VARCHAR(50) NOT NULL,
+            description TEXT,
+            ref_id VARCHAR(50),
+            expires_at TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_id (user_id),
+            INDEX idx_expires_at (expires_at)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+        console.log('Point Transactions table created');
     } else {
-      console.log('Point Transactions table already exists');
+        const [transCols] = await pool.execute(`
+          SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'point_transactions' AND COLUMN_NAME IN ('expires_at', 'remaining_points')
+        `, [dbConfig.database]);
+        const existingTransCols = transCols.map(c => c.COLUMN_NAME);
+        if (!existingTransCols.includes('expires_at')) {
+            await pool.execute('ALTER TABLE point_transactions MODIFY COLUMN type VARCHAR(50) NOT NULL');
+            await pool.execute('ALTER TABLE point_transactions ADD COLUMN expires_at TIMESTAMP NULL');
+            await pool.execute('ALTER TABLE point_transactions ADD COLUMN remaining_points INT NOT NULL DEFAULT 0');
+            await pool.execute('CREATE INDEX idx_expires_at ON point_transactions(expires_at)');
+            console.log('Point Transactions table updated for expiry');
+        }
     }
 
     // Kiểm tra và tạo bảng product_favorites

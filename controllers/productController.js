@@ -52,8 +52,8 @@ const productController = {
     // Lấy chi tiết sản phẩm
     getProductById: async (req, res) => {
         try {
-            const { id } = req.params;
-            const product = await Product.findById(id);
+            const { productId } = req.params;
+            const product = await Product.findById(productId);
 
             if (!product) {
                 return res.status(404).json({
@@ -154,9 +154,9 @@ const productController = {
     // Lấy sản phẩm tương tự
     getSimilarProducts: async (req, res) => {
         try {
-            const { id } = req.params;
+            const { productId } = req.params;
             const limit = parseInt(req.query.limit) || 10;
-            const products = await Product.getSimilarProducts(id, limit);
+            const products = await Product.getSimilarProducts(productId, limit);
             res.json({
                 success: true,
                 data: products
@@ -198,11 +198,11 @@ const productController = {
     // Track lượt xem sản phẩm
     trackProductView: async (req, res) => {
         try {
-            const { id } = req.params;
+            const { productId } = req.params;
             const userId = req.user?.id || req.user?.userId;
 
             if (userId) {
-                await Product.trackView(userId, id);
+                await Product.trackView(userId, productId);
             }
 
             res.json({ success: true });

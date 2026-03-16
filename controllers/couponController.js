@@ -45,7 +45,9 @@ exports.getLoyaltyPoints = async (req, res) => {
 
         res.json({
             success: true,
-            data: balance
+            data: {
+                balance: balance.current_balance || 0
+            }
         });
     } catch (error) {
         console.error('Get loyalty points error:', error);
