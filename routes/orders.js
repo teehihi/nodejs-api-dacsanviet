@@ -31,6 +31,14 @@ router.post('/', authenticateToken, createOrderValidation, orderController.creat
 // Get user's orders
 router.get('/', authenticateToken, orderController.getUserOrders);
 
+// Get ALL orders (Admin only) - MUST be before /:orderId
+router.get(
+  '/all',
+  authenticateToken,
+  requireRole(['ADMIN', 'STAFF']),
+  orderController.getAllOrders
+);
+
 // Get order statistics
 router.get('/stats', authenticateToken, orderController.getOrderStats);
 
@@ -50,14 +58,6 @@ router.get('/:orderId', authenticateToken, orderController.getOrderById);
 
 // Cancel order
 router.post('/:orderId/cancel', authenticateToken, orderController.cancelOrder);
-
-// Get ALL orders (Admin only)
-router.get(
-  '/all',
-  authenticateToken,
-  requireRole(['ADMIN', 'STAFF']),
-  orderController.getAllOrders
-);
 
 // Update order status (Admin only)
 router.patch(
