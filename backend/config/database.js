@@ -78,6 +78,22 @@ const ensureApiTables = async () => {
       if (userColumns.length > 0) {
         console.log(`Users table ID column type: ${userColumns[0].COLUMN_TYPE}`);
       }
+
+      // Đảm bảo có cột fcm_token
+      const [fcmCols] = await pool.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'fcm_token'
+      `, [dbConfig.database]);
+
+      if (fcmCols.length === 0) {
+        try {
+          await pool.execute('ALTER TABLE users ADD COLUMN fcm_token VARCHAR(255) DEFAULT NULL');
+          console.log('Added fcm_token column to users');
+        } catch (alterError) {
+          console.error('Error adding fcm_token column:', alterError.message);
+        }
+      }
     }
 
     // Kiểm tra bảng api_sessions

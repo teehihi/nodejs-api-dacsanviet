@@ -9,7 +9,8 @@ const {
   sendRegistrationOTP,
   verifyRegistrationOTP,
   sendPasswordResetOTP,
-  resetPasswordWithOTP
+  resetPasswordWithOTP,
+  updateFcmToken
 } = require('../controllers/authController');
 
 // Import validators
@@ -58,6 +59,10 @@ router.post('/logout-all', sessionValidation, logoutAll);
 
 // POST /api/auth/check-session - Kiểm tra phiên đăng nhập
 router.post('/check-session', readLimiter, sessionValidation, checkSession);
+
+// POST /api/auth/fcm-token - Cập nhật FCM Token (Cần authenticateToken)
+const { authenticateToken } = require('../middleware/auth');
+router.post('/fcm-token', authenticateToken, updateFcmToken);
 
 // GET /api/auth - Thông tin về auth endpoints
 router.get('/', (req, res) => {

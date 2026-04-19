@@ -600,6 +600,27 @@ const resetPasswordWithOTP = async (req, res) => {
   }
 };
 
+const updateFcmToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const userId = req.user.id;
+
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, message: 'FCM Token is required' });
+    }
+
+    await User.updateFcmToken(userId, fcmToken);
+
+    res.json({
+      success: true,
+      message: 'FCM Token updated successfully'
+    });
+  } catch (error) {
+    console.error('Update FCM Token error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -609,5 +630,6 @@ module.exports = {
   sendRegistrationOTP,
   verifyRegistrationOTP,
   sendPasswordResetOTP,
-  resetPasswordWithOTP
+  resetPasswordWithOTP,
+  updateFcmToken
 };

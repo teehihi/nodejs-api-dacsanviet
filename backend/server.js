@@ -41,6 +41,20 @@ app.set('trust proxy', 1);
 // Serve static files
 app.use(express.static('public'));
 
+// Test notification route
+app.get('/api/test-notify', (req, res) => {
+  const { notifyAdmin } = require('./socket/socketManager');
+  
+  // Gửi event socket cho Admin
+  notifyAdmin('notification', {
+    title: '🔔 Thông báo thử nghiệm',
+    body: 'Chúc mừng! Chức năng thông báo của bạn đã hoạt động hoàn hảo. 🚀',
+    data: { test: true }
+  });
+
+  res.json({ success: true, message: 'Test notification sent to Admin' });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -53,6 +67,10 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/loyalty-points', loyaltyPointsRoutes);
 app.use('/api/notifications', notificationRoutes);
+
+// Admin Routes
+const adminRoutes = require('./routes/admin/index');
+app.use('/api/admin', adminRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {

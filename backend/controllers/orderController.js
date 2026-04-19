@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const { notifyUser, notifyAdmin } = require('../socket/socketManager');
 const { pool } = require('../config/database');
 const { validationResult } = require('express-validator');
+const { notifyAdminsPush } = require('../config/firebaseAdmin');
 
 // Create new order
 exports.createOrder = async (req, res) => {
@@ -130,10 +131,19 @@ exports.createOrder = async (req, res) => {
           body: adminNotifBody,
           data: { orderId: order.id, userName, totalAmount: finalAmount },
         });
-        
+
         // Gửi cả 2 sự kiện socket để tương thích với các màn hình admin cũ/mới
         notifyAdmin('new_order', { orderId: order.id, userId, totalAmount: finalAmount, userName });
         notifyAdmin('notification', adminNotif);
+
+        // 3. Thông báo đẩy FCM (Background/Terminated)
+        notifyAdminsPush({
+          title: '🛍️ Đơn hàng mới!',
+          body: `Khách hàng ${userName} vừa đặt đơn hàng ${order.id} giá trị ${finalAmount.toLocaleString('vi-VN')}đ`,
+        }, {
+          orderId: order.id,
+          type: 'NEW_ORDER'
+        });
       }
     } catch (e) {
       console.error('Notify error:', e.message);
@@ -428,11 +438,12 @@ exports.updateOrderStatus = async (req, res) => {
 // Get ALL orders - Admin only
 exports.getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status } = req.query;
+    const { page = 1, limit = 20, status, userId } = req.query;
     const result = await Order.findAll({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
+      userId
     });
     res.json({
       success: true,

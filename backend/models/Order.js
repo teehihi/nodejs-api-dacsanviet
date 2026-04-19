@@ -103,21 +103,12 @@ class Order {
         u.username, u.email, u.full_name as user_full_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
-      WHERE o.order_number = ?`,
-      [orderId]
+      WHERE o.id = ? OR o.order_number = ?`,
+      [orderId, orderId]
     );
 
     if (orders.length === 0) return null;
-
-    const order = orders[0];
-
-    // Get order items using orders.id (bigint), not order_number
-    const [items] = await executor.query(
-      `SELECT * FROM order_items WHERE order_id = ?`,
-      [order.id], // Use order.id (bigint) instead of orderId (order_number string)
-    );
-
-    return this.formatOrder(order, items);
+    return await this.formatOrder(orders[0]);
   }
 
   // Find orders by user ID
@@ -127,7 +118,7 @@ class Order {
 
     let query = `
       SELECT o.*,
-             (SELECT COUNT(*) FROM product_reviews pr WHERE pr.order_id = o.id) as reviews_count,
+             0 as reviews_count,
              (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count
       FROM orders o
       WHERE o.user_id = ?
@@ -147,11 +138,7 @@ class Order {
     // Get items for each order
     const ordersWithItems = await Promise.all(
       orders.map(async (order) => {
-        const [items] = await pool.query(
-          `SELECT * FROM order_items WHERE order_id = ?`,
-          [order.id],
-        );
-        return this.formatOrder(order, items);
+        return await this.formatOrder(order);
       }),
     );
 
@@ -188,8 +175,8 @@ class Order {
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     const values = Object.values(updates);
 
-    let query = `UPDATE orders SET ${fields}, updated_at = NOW() WHERE order_number = ?`;
-    const params = [...values, orderId];
+    let query = `UPDATE orders SET ${fields}, updated_at = NOW() WHERE (id = ? OR order_number = ?)`;
+    const params = [...values, orderId, orderId];
 
     if (userId) {
       query += ` AND user_id = ?`;
@@ -249,30 +236,51 @@ class Order {
     const offset = (page - 1) * limit;
 
     let query = `SELECT o.*, u.username, u.email, u.full_name as user_full_name,
-                         (SELECT COUNT(*) FROM product_reviews pr WHERE pr.order_id = o.id) as reviews_count,
+                         0 as reviews_count,
                          (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count
       FROM orders o LEFT JOIN users u ON o.user_id = u.id`;
     const params = [];
+    const conditions = [];
 
     if (status) {
-      query += ` WHERE o.status = ?`;
+      conditions.push(`o.status = ?`);
       params.push(status);
     }
+    if (options.userId) {
+      conditions.push(`o.user_id = ?`);
+      params.push(options.userId);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(' AND ');
+    }
+
     query += ` ORDER BY o.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
     const [orders] = await pool.query(query, params);
     const ordersWithItems = await Promise.all(
       orders.map(async (order) => {
-        const [items] = await pool.query(`SELECT * FROM order_items WHERE order_id = ?`, [order.id]);
-        return this.formatOrder(order, items);
+        return await this.formatOrder(order); // Now handles item fetching internally
       })
     );
 
-    const countQuery = status
-      ? `SELECT COUNT(*) as total FROM orders WHERE status = ?`
-      : `SELECT COUNT(*) as total FROM orders`;
-    const [countResult] = await pool.query(countQuery, status ? [status] : []);
+    let countQuery = `SELECT COUNT(*) as total FROM orders`;
+    const countParams = [];
+    if (status || options.userId) {
+      countQuery += ` WHERE `;
+      const countConditions = [];
+      if (status) {
+        countConditions.push(`status = ?`);
+        countParams.push(status);
+      }
+      if (options.userId) {
+        countConditions.push(`user_id = ?`);
+        countParams.push(options.userId);
+      }
+      countQuery += countConditions.join(' AND ');
+    }
+    const [countResult] = await pool.query(countQuery, countParams);
 
     return {
       orders: ordersWithItems,
@@ -307,50 +315,86 @@ class Order {
   }
 
   // Helper: Format order object
-  static formatOrder(order, items) {
-    const canCancel =
-      ["NEW", "CONFIRMED", "PREPARING"].includes(order.status) &&
-      order.order_date &&
-      new Date() - new Date(order.order_date) < 30 * 60 * 1000; // 30 minutes
+  static async formatOrder(order, providedItems = null) {
+    let items = providedItems;
+    if (!items) {
+      const [rows] = await pool.query(
+        `SELECT * FROM order_items WHERE order_id = ?`,
+        [order.id]
+      );
+      items = rows;
+    }
 
-    // Parse shipping_address_text to extract components
     const addressParts = order.shipping_address_text
       ? order.shipping_address_text.split(", ")
       : [];
 
+    // Extract name and phone from shipping_address_text
+    const customerName = order.customer_name || addressParts[0] || "Khách hàng";
+    const customerPhone = order.customer_phone || addressParts[1] || "";
+    const displayAddress = addressParts.slice(2).join(", ") || order.shipping_address_text || "";
+
+    // Map database statuses to match Flutter UI expectations
+    let finalStatus = (order.status || 'NEW').toUpperCase();
+    if (finalStatus === 'PROCESSING') finalStatus = 'NEW';
+    if (finalStatus === 'SHIPPED') finalStatus = 'SHIPPING';
+
     return {
-      id: order.order_number,
-      numericId: order.id,           // bigint PK, used by product_reviews.order_id
+      id: order.id,
+      orderId: order.id,
+      numericId: order.id,
+      code: order.order_number,
+      order_number: order.order_number,
       userId: order.user_id,
       userEmail: order.email,
       userFullName: order.user_full_name,
+      
+      // Top-level flat fields for AppController/OrderCard
+      customer_name: customerName,
+      customerName: customerName,
+      phone: customerPhone,
+      customerPhone: customerPhone,
+      shipping_address: displayAddress,
+      shippingAddress: displayAddress,
+      shipping_address_text: order.shipping_address_text,
+      total_amount: parseFloat(order.total_amount),
+      totalAmount: parseFloat(order.total_amount),
+      payment_method: order.payment_method,
+      paymentMethod: order.payment_method,
+      status: finalStatus, // Mapped status for UI
+      
       items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,
+        product_id: item.product_id,
         productName: item.product_name || "",
+        product_name: item.product_name || "",
         productImage: item.product_image_url || item.product_image || "",
+        product_image: item.product_image_url || item.product_image || "",
         price: parseFloat(item.unit_price || item.price || 0),
+        unit_price: parseFloat(item.unit_price || item.price || 0),
         quantity: item.quantity,
       })),
-      totalAmount: parseFloat(order.total_amount),
-      shippingFee: 0, // Default 0 as requested
+      shippingFee: 0,
       discountAmount: parseFloat(order.discount_amount || 0),
       pointsUsed: parseInt(order.points_used || 0),
       subtotal: parseFloat(order.total_amount) + parseFloat(order.discount_amount || 0) + parseInt(order.points_used || 0),
-      shippingAddress: {
-        fullName: order.customer_name || "",
-        phoneNumber: order.customer_phone || "",
-        address: addressParts[0] || "",
-        ward: addressParts[1] || "",
-        district: addressParts[2] || "",
-        city: addressParts[3] || "",
+      
+      // Keep nested for advanced screens
+      fullAddress: {
+        fullName: customerName,
+        phoneNumber: customerPhone,
+        address: addressParts[2] || "",
+        ward: addressParts[3] || "",
+        district: addressParts[4] || "",
+        city: addressParts[5] || "",
         note: order.notes || "",
       },
       couponCode: order.coupon_code || null,
-      paymentMethod: order.payment_method,
       carrierName: order.carrier_name || null,
-      status: order.status,
       createdAt: order.created_at,
+      created_at: order.created_at,
+      order_date: order.order_date,
       confirmedAt: order.confirmed_at || null,
       cancelledAt: order.cancelled_at || null,
       deliveredAt: order.delivered_at || null,
@@ -360,8 +404,8 @@ class Order {
       cancelDeadline: order.order_date
         ? new Date(new Date(order.order_date).getTime() + 30 * 60 * 1000)
         : null,
-      canCancel: order.status === 'NEW' || order.status === 'PREPARING',
-      isCancelRequested: order.status === 'CANCEL_REQUESTED'
+      canCancel: finalStatus === 'NEW' || finalStatus === 'PREPARING',
+      isCancelRequested: finalStatus === 'CANCEL_REQUESTED'
     };
   }
 
