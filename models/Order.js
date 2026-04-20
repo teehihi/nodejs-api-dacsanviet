@@ -163,20 +163,24 @@ class Order {
   }
 
   // Update order status
-  static async updateStatus(orderId, status, userId = null, carrierName = null, connection = null) {
+  static async updateStatus(orderId, status, userId = null, carrierName = null, cancelReason = null, paymentMethod = null, connection = null) {
     const updates = { status };
     const now = new Date();
 
     if (status === 'CONFIRMED') updates.confirmed_at = now;
     else if (status === 'CANCELLED') updates.cancelled_at = now;
     else if (status === 'DELIVERED') updates.delivered_at = now;
+    
     if (carrierName) updates.carrier_name = carrierName;
+    if (cancelReason) updates.cancel_reason = cancelReason;
+    if (paymentMethod) updates.payment_method = paymentMethod;
 
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     const values = Object.values(updates);
 
     let query = `UPDATE orders SET ${fields}, updated_at = NOW() WHERE (id = ? OR order_number = ?)`;
     const params = [...values, orderId, orderId];
+
 
     if (userId) {
       query += ` AND user_id = ?`;
@@ -392,7 +396,9 @@ class Order {
       },
       couponCode: order.coupon_code || null,
       carrierName: order.carrier_name || null,
+      cancelReason: order.cancel_reason || null,
       createdAt: order.created_at,
+
       created_at: order.created_at,
       order_date: order.order_date,
       confirmedAt: order.confirmed_at || null,

@@ -33,7 +33,7 @@ exports.getAllOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status, carrierName } = req.body;
+    const { status, carrierName, cancelReason, paymentMethod } = req.body;
 
     const validStatuses = [
       'NEW', 'PREPARING', 'SHIPPING', 'DELIVERED', 'CANCELLED', 'CANCEL_REQUESTED', 'RETURNED'
@@ -53,8 +53,17 @@ exports.updateOrderStatus = async (req, res) => {
         message: 'Vui lòng cung cấp thông tin Đơn vị Vận Chuyển',
       });
     }
+    
+    // Require cancel reason if CANCELLED
+    if (status === 'CANCELLED' && !cancelReason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp lý do hủy đơn hàng',
+      });
+    }
 
-    const order = await Order.updateStatus(orderId, status, null, carrierName);
+    const order = await Order.updateStatus(orderId, status, null, carrierName, cancelReason, paymentMethod);
+
 
     if (!order) {
       return res.status(404).json({
