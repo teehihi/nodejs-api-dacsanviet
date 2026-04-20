@@ -53,13 +53,15 @@ exports.getAllUsers = async (req, res) => {
 
     res.json({
       success: true,
-      data: usersWithStats,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: countResult[0].total,
-        totalPages: Math.ceil(countResult[0].total / limit),
-      },
+      data: {
+        users: usersWithStats,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: countResult[0].total,
+          totalPages: Math.ceil(countResult[0].total / limit),
+        }
+      }
     });
   } catch (error) {
     console.error('Get all users error:', error);

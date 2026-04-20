@@ -1,5 +1,11 @@
 const Product = require('../../models/Product');
 const { pool } = require('../../config/database');
+const fs = require('fs');
+const path = require('path');
+
+// Helper to remove diacritics for MySQL search (optional as MySQL collation usually handles this, 
+// but if not, we can use a simpler approach or just trust the user's input).
+// For now, I'll stick to standard LIKE but adjust the controller logic to handle file uploads.
 
 // GET all products (admin view with filters)
 exports.getAllProducts = async (req, res) => {
@@ -26,6 +32,8 @@ exports.getAllProducts = async (req, res) => {
     }
 
     if (search) {
+      // Use COLLATE utf8mb4_general_ci or similar for accent-insensitive search if needed
+      // Most MySQL setups are case and accent insensitive by default with general_ci
       query += ` AND (p.name LIKE ? OR p.description LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
@@ -55,13 +63,15 @@ exports.getAllProducts = async (req, res) => {
 
     res.json({
       success: true,
-      data: products,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: countResult[0].total,
-        totalPages: Math.ceil(countResult[0].total / limit),
-      },
+      data: {
+        products: products,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: countResult[0].total,
+          totalPages: Math.ceil(countResult[0].total / limit),
+        }
+      }
     });
   } catch (error) {
     console.error('Get all products error:', error);
@@ -78,20 +88,32 @@ exports.createProduct = async (req, res) => {
       discount_percent, is_active, is_featured,
     } = req.body;
 
-    const discount_price = discount_percent
-      ? price * (1 - discount_percent / 100)
+    let image_url = req.body.image_url || null;
+    if (req.file) {
+      // Save relative path for static serving
+      image_url = '/' + req.file.path.replace(/\\/g, '/').replace('public/', '');
+    }
+
+    // Parse numeric values properly (multipart sends everything as strings)
+    const parsedPrice = parseInt(price) || 0;
+    const parsedStock = parseInt(stock_quantity) || 0;
+    const parsedDiscount = discount_percent ? parseFloat(discount_percent) : null;
+    const parsedWeight = weight_grams ? parseInt(weight_grams) : null;
+
+    const discount_price = parsedDiscount
+      ? parsedPrice * (1 - parsedDiscount / 100)
       : null;
 
     const [result] = await pool.query(
       `INSERT INTO products (
-        name, description, short_description, price, category_id,
+        name, description, short_description, price, image_url, category_id,
         supplier_id, stock_quantity, origin, weight_grams,
         discount_percent, discount_price, is_active, is_featured, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
-        name, description, short_description, price, category_id,
-        supplier_id, stock_quantity || 0, origin, weight_grams,
-        discount_percent || null, discount_price, is_active !== false ? 1 : 0,
+        name, description || name, short_description || null, parsedPrice, image_url, category_id,
+        supplier_id || null, parsedStock, origin || null, parsedWeight,
+        parsedDiscount, discount_price, is_active !== false ? 1 : 0,
         is_featured ? 1 : 0,
       ]
     );
@@ -113,7 +135,26 @@ exports.createProduct = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+
+    // Parse numeric values properly (multipart sends everything as strings)
+    if (updates.price !== undefined) updates.price = parseInt(updates.price) || 0;
+    if (updates.stock_quantity !== undefined) updates.stock_quantity = parseInt(updates.stock_quantity) || 0;
+    if (updates.weight_grams !== undefined) updates.weight_grams = parseInt(updates.weight_grams) || null;
+    if (updates.discount_percent !== undefined) updates.discount_percent = parseFloat(updates.discount_percent) || null;
+
+    // Handle Image Upload
+    if (req.file) {
+      // Get old product to delete old image
+      const [oldProduct] = await pool.query('SELECT image_url FROM products WHERE id = ?', [id]);
+      if (oldProduct.length > 0 && oldProduct[0].image_url && oldProduct[0].image_url.startsWith('/uploads/')) {
+        const oldPath = path.join(__dirname, '../../public', oldProduct[0].image_url);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+      updates.image_url = '/' + req.file.path.replace(/\\/g, '/').replace('public/', '');
+    }
 
     // Recalculate discount_price if discount_percent or price changed
     if (updates.discount_percent !== undefined || updates.price !== undefined) {
@@ -128,10 +169,12 @@ exports.updateProduct = async (req, res) => {
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     const values = Object.values(updates);
 
-    await pool.query(
-      `UPDATE products SET ${fields}, updated_at = NOW() WHERE id = ?`,
-      [...values, id]
-    );
+    if (fields) {
+      await pool.query(
+        `UPDATE products SET ${fields}, updated_at = NOW() WHERE id = ?`,
+        [...values, id]
+      );
+    }
 
     const [product] = await pool.query('SELECT * FROM products WHERE id = ?', [id]);
 

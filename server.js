@@ -1,7 +1,9 @@
+const path = require('path');
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+// const path = require('path');
 require('dotenv').config();
 
 // Import database và routes
@@ -40,11 +42,12 @@ app.set('trust proxy', 1);
 
 // Serve static files
 app.use(express.static('public'));
+app.use('/uploads/products', express.static(path.join(__dirname, 'public/uploads/products')));
 
 // Test notification route
 app.get('/api/test-notify', (req, res) => {
   const { notifyAdmin } = require('./socket/socketManager');
-  
+
   // Gửi event socket cho Admin
   notifyAdmin('notification', {
     title: '🔔 Thông báo thử nghiệm',

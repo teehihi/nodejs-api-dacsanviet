@@ -58,18 +58,18 @@ exports.createCoupon = async (req, res) => {
   try {
     const {
       code, type, value, min_order_amount, max_discount_amount,
-      usage_limit, valid_from, valid_to, description, is_active,
+      usage_limit, expires_at, description, is_active,
     } = req.body;
 
     const [result] = await pool.query(
       `INSERT INTO coupons (
-        code, type, value, min_order_amount, max_discount_amount,
-        usage_limit, valid_from, valid_to, description, is_active, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        code, discount_type, discount_value, min_order_amount, max_discount_amount,
+        max_uses, expires_at, is_active, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         code.toUpperCase(), type, value, min_order_amount || 0,
-        max_discount_amount || null, usage_limit || null,
-        valid_from, valid_to, description, is_active !== false ? 1 : 0,
+        max_discount_amount || null, usage_limit || 1,
+        expires_at || req.body.valid_to, is_active !== false ? 1 : 0,
       ]
     );
 
@@ -183,9 +183,9 @@ exports.getCouponStats = async (req, res) => {
       SELECT
         COUNT(*) as total_coupons,
         SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_coupons,
-        SUM(CASE WHEN valid_to < NOW() THEN 1 ELSE 0 END) as expired_coupons,
+        SUM(CASE WHEN expires_at < NOW() THEN 1 ELSE 0 END) as expired_coupons,
         (SELECT COUNT(*) FROM coupon_usages) as total_usages,
-        (SELECT SUM(discount_amount) FROM coupon_usages) as total_discount_given
+        (SELECT SUM(discount_applied) FROM coupon_usages) as total_discount_given
       FROM coupons
     `);
 

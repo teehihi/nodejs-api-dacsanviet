@@ -356,9 +356,9 @@ class Product {
     static async getAllCategories() {
         try {
             const [rows] = await pool.execute(
-                'SELECT DISTINCT name FROM categories WHERE CAST(is_active AS UNSIGNED) = 1 ORDER BY name'
+                'SELECT * FROM categories WHERE CAST(is_active AS UNSIGNED) = 1 ORDER BY name'
             );
-            return rows.map(row => row.name);
+            return rows;
         } catch (error) {
             console.error('Error getting categories:', error);
             throw error;

@@ -7,6 +7,9 @@ router.use(authenticateToken, requireRole(['ADMIN']));
 
 // Use sub-routers
 router.use('/orders', require('./orders'));
-router.use('/users', require('../users'));
+router.use('/users', require('./users'));
+router.use('/products', require('./products'));
+router.use('/coupons', require('./coupons'));
+router.use('/revenue', require('./revenue'));
 
 module.exports = router;

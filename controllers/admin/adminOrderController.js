@@ -15,8 +15,10 @@ exports.getAllOrders = async (req, res) => {
     res.json({
       success: true,
       message: 'All orders retrieved successfully',
-      data: result.orders,
-      pagination: result.pagination,
+      data: {
+        orders: result.orders,
+        pagination: result.pagination,
+      },
     });
   } catch (error) {
     console.error('Admin get all orders error:', error);
