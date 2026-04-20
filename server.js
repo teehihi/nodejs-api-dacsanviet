@@ -17,10 +17,6 @@ const favoriteRoutes = require('./routes/favorites');
 const couponRoutes = require('./routes/coupons');
 const loyaltyPointsRoutes = require('./routes/loyaltyPoints');
 const notificationRoutes = require('./routes/notifications');
-const adminProductRoutes = require('./routes/admin/products');
-const adminCouponRoutes = require('./routes/admin/coupons');
-const adminRevenueRoutes = require('./routes/admin/revenue');
-const adminUserRoutes = require('./routes/admin/users');
 const { initSocket, notifyUser, notifyAdmin } = require('./socket/socketManager');
 const Notification = require('./models/Notification');
 const User = require('./models/User');
@@ -45,6 +41,20 @@ app.set('trust proxy', 1);
 // Serve static files
 app.use(express.static('public'));
 
+// Test notification route
+app.get('/api/test-notify', (req, res) => {
+  const { notifyAdmin } = require('./socket/socketManager');
+  
+  // Gửi event socket cho Admin
+  notifyAdmin('notification', {
+    title: '🔔 Thông báo thử nghiệm',
+    body: 'Chúc mừng! Chức năng thông báo của bạn đã hoạt động hoàn hảo. 🚀',
+    data: { test: true }
+  });
+
+  res.json({ success: true, message: 'Test notification sent to Admin' });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -58,11 +68,9 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/loyalty-points', loyaltyPointsRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Admin routes
-app.use('/api/admin/products', adminProductRoutes);
-app.use('/api/admin/coupons', adminCouponRoutes);
-app.use('/api/admin/revenue', adminRevenueRoutes);
-app.use('/api/admin/users', adminUserRoutes);
+// Admin Routes
+const adminRoutes = require('./routes/admin/index');
+app.use('/api/admin', adminRoutes);
 
 // Root endpoint
 app.get('/', async (req, res) => {

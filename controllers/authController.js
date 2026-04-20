@@ -5,7 +5,7 @@ const OTP = require('../models/OTP');
 const JWTService = require('../utils/jwt');
 const emailService = require('../services/emailService');
 
-// Register - Đăng ký tài khoản mới
+// Register - Đăng ký tài khoản
 const register = async (req, res) => {
   try {
     const { username, email, password, fullName, phoneNumber, role } = req.body;
@@ -296,11 +296,11 @@ const sendRegistrationOTP = async (req, res) => {
     }
 
     // Kiểm tra rate limit
-    const canSendOTP = await OTP.checkRateLimit(email, 'registration', 300000, 3); // 5 phút, tối đa 3 lần
+    const canSendOTP = await OTP.checkRateLimit(email, 'registration', 1800000, 3); // 30 phút, tối đa 3 lần
     if (!canSendOTP) {
       return res.status(429).json({
         success: false,
-        message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 5 phút'
+        message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 30 phút'
       });
     }
 
@@ -477,11 +477,11 @@ const sendPasswordResetOTP = async (req, res) => {
     }
 
     // Kiểm tra rate limit
-    const canSendOTP = await OTP.checkRateLimit(email, 'password_reset', 300000, 3); // 5 phút, tối đa 3 lần
+    const canSendOTP = await OTP.checkRateLimit(email, 'password_reset', 1800000, 3); // 30 phút, tối đa 3 lần
     if (!canSendOTP) {
       return res.status(429).json({
         success: false,
-        message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 5 phút'
+        message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 30 phút'
       });
     }
 
@@ -600,6 +600,27 @@ const resetPasswordWithOTP = async (req, res) => {
   }
 };
 
+const updateFcmToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const userId = req.user.id;
+
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, message: 'FCM Token is required' });
+    }
+
+    await User.updateFcmToken(userId, fcmToken);
+
+    res.json({
+      success: true,
+      message: 'FCM Token updated successfully'
+    });
+  } catch (error) {
+    console.error('Update FCM Token error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -609,5 +630,6 @@ module.exports = {
   sendRegistrationOTP,
   verifyRegistrationOTP,
   sendPasswordResetOTP,
-  resetPasswordWithOTP
+  resetPasswordWithOTP,
+  updateFcmToken
 };

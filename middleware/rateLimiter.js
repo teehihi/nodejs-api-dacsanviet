@@ -44,12 +44,12 @@ const authLimiter = rateLimit({
 
 // Rate limiter cho OTP endpoints (rất nghiêm ngặt)
 const otpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 phút
-  max: 3, // Giới hạn 3 requests mỗi IP trong 15 phút
+  windowMs: 30 * 60 * 1000, // 30 phút
+  max: 3, // Giới hạn 3 requests mỗi IP trong 30 phút
   skipSuccessfulRequests: false,
   message: {
     success: false,
-    message: 'Quá nhiều yêu cầu gửi OTP. Vui lòng thử lại sau 15 phút.'
+    message: 'Quá nhiều yêu cầu gửi OTP. Vui lòng thử lại sau 30 phút.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -92,12 +92,12 @@ const loginLimiter = rateLimit({
 
 // Rate limiter cho password reset
 const passwordResetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 giờ
-  max: 3, // Giới hạn 3 requests mỗi IP trong 1 giờ
+  windowMs: 30 * 60 * 1000, // 30 phút
+  max: 3, // Giới hạn 3 requests mỗi IP trong 30 phút
   skipSuccessfulRequests: false,
   message: {
     success: false,
-    message: 'Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau 1 giờ.'
+    message: 'Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau 30 phút.'
   },
   standardHeaders: true,
   legacyHeaders: false,

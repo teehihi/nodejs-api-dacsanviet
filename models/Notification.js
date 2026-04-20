@@ -25,32 +25,35 @@ class Notification {
     return { id: result.insertId, userId, type, title, body, data, isRead: false };
   }
 
-  static async findByUserId(userId, limit = 30) {
+  static async findByUserId(userId, role, limit = 30) {
     const [rows] = await pool.query(
-      `SELECT * FROM notifications WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC LIMIT ?`,
-      [userId, limit]
+      `SELECT * FROM notifications 
+       WHERE user_id = ? 
+       OR (user_id IS NULL AND (? = 'ADMIN'))
+       ORDER BY created_at DESC LIMIT ?`,
+      [userId, role, limit]
     );
     return rows.map(this.format);
   }
 
-  static async markRead(id, userId) {
+  static async markRead(id, userId, role) {
     await pool.query(
-      'UPDATE notifications SET is_read = 1 WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
-      [id, userId]
+      'UPDATE notifications SET is_read = 1 WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND ? = "ADMIN"))',
+      [id, userId, role]
     );
   }
 
-  static async markAllRead(userId) {
+  static async markAllRead(userId, role) {
     await pool.query(
-      'UPDATE notifications SET is_read = 1 WHERE user_id = ? OR user_id IS NULL',
-      [userId]
+      'UPDATE notifications SET is_read = 1 WHERE user_id = ? OR (user_id IS NULL AND ? = "ADMIN")',
+      [userId, role]
     );
   }
 
-  static async getUnreadCount(userId) {
+  static async getUnreadCount(userId, role) {
     const [rows] = await pool.query(
-      'SELECT COUNT(*) as count FROM notifications WHERE (user_id = ? OR user_id IS NULL) AND is_read = 0',
-      [userId]
+      'SELECT COUNT(*) as count FROM notifications WHERE (user_id = ? OR (user_id IS NULL AND ? = "ADMIN")) AND is_read = 0',
+      [userId, role]
     );
     return rows[0].count;
   }

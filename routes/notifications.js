@@ -6,8 +6,8 @@ const Notification = require('../models/Notification');
 // GET /api/notifications - lấy danh sách
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const notifications = await Notification.findByUserId(req.user.id);
-    const unreadCount = await Notification.getUnreadCount(req.user.id);
+    const notifications = await Notification.findByUserId(req.user.id, req.user.role);
+    const unreadCount = await Notification.getUnreadCount(req.user.id, req.user.role);
     res.json({ success: true, data: { notifications, unreadCount } });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -17,7 +17,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // GET /api/notifications/unread-count
 router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
-    const count = await Notification.getUnreadCount(req.user.id);
+    const count = await Notification.getUnreadCount(req.user.id, req.user.role);
     res.json({ success: true, data: { count } });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -27,7 +27,7 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
 // PUT /api/notifications/:id/read
 router.put('/:id/read', authenticateToken, async (req, res) => {
   try {
-    await Notification.markRead(req.params.id, req.user.id);
+    await Notification.markRead(req.params.id, req.user.id, req.user.role);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -37,7 +37,7 @@ router.put('/:id/read', authenticateToken, async (req, res) => {
 // PUT /api/notifications/read-all
 router.put('/read-all', authenticateToken, async (req, res) => {
   try {
-    await Notification.markAllRead(req.user.id);
+    await Notification.markAllRead(req.user.id, req.user.role);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });

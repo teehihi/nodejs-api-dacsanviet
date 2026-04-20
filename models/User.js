@@ -262,6 +262,33 @@ class User {
     }
   }
 
+  // Cập nhật FCM Token
+  static async updateFcmToken(userId, fcmToken) {
+    try {
+      const [result] = await pool.execute(
+        'UPDATE users SET fcm_token = ? WHERE id = ?',
+        [fcmToken, userId]
+      );
+      return result.affectedRows > 0;
+    } catch (error) {
+      console.error('Error updating FCM token:', error);
+      throw error;
+    }
+  }
+
+  // Lấy tất cả fcm_tokens của admins
+  static async getAdminFcmTokens() {
+    try {
+      const [rows] = await pool.execute(
+        'SELECT fcm_token FROM users WHERE role = "ADMIN" AND fcm_token IS NOT NULL AND is_active = 1'
+      );
+      return rows.map(r => r.fcm_token);
+    } catch (error) {
+      console.error('Error getting admin FCM tokens:', error);
+      throw error;
+    }
+  }
+
   // Format user data (convert snake_case to camelCase)
   static formatUser(dbUser) {
     if (!dbUser) return null;
@@ -276,6 +303,7 @@ class User {
       avatarUrl: dbUser.avatar_url,
       role: dbUser.role,
       isActive: dbUser.is_active && (dbUser.is_active[0] === 1 || dbUser.is_active === 1),
+      fcmToken: dbUser.fcm_token,
       createdAt: dbUser.created_at,
       updatedAt: dbUser.updated_at
     };

@@ -147,8 +147,38 @@ const requireRole = (roles) => {
   };
 };
 
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return next();
+    }
+
+    const decoded = JWTService.verifyToken(token);
+    const user = await User.findById(decoded.userId || decoded.id);
+
+    if (user && user.isActive) {
+      req.user = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive
+      };
+    }
+    next();
+  } catch (error) {
+    // Ignore errors for optional auth
+    next();
+  }
+};
+
 module.exports = {
   authenticateToken,
+  optionalAuth,
   requireAdmin,
   requireStaffOrAdmin,
   requireOwnershipOrAdmin,

@@ -8,9 +8,10 @@ const productController = {
 
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 12;
-            const offset = (page - 1) * limit;
+            const queryOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
+            const offset = queryOffset !== null && !isNaN(queryOffset) ? queryOffset : (page - 1) * limit;
 
-            console.log('📊 Parsed params:', { page, limit, offset });
+            console.log('📊 Parsed params:', { page, limit, offset, queryOffset });
 
             const filters = {
                 q: req.query.q,
@@ -51,8 +52,8 @@ const productController = {
     // Lấy chi tiết sản phẩm
     getProductById: async (req, res) => {
         try {
-            const { id } = req.params;
-            const product = await Product.findById(id);
+            const { productId } = req.params;
+            const product = await Product.findById(productId);
 
             if (!product) {
                 return res.status(404).json({
@@ -134,7 +135,8 @@ const productController = {
     getDiscountedProducts: async (req, res) => {
         try {
             const limit = parseInt(req.query.limit) || 20;
-            const products = await Product.getDiscountedProducts(limit);
+            const offset = parseInt(req.query.offset) || 0;
+            const products = await Product.getDiscountedProducts(limit, offset);
             res.json({
                 success: true,
                 data: products
@@ -152,9 +154,9 @@ const productController = {
     // Lấy sản phẩm tương tự
     getSimilarProducts: async (req, res) => {
         try {
-            const { id } = req.params;
+            const { productId } = req.params;
             const limit = parseInt(req.query.limit) || 10;
-            const products = await Product.getSimilarProducts(id, limit);
+            const products = await Product.getSimilarProducts(productId, limit);
             res.json({
                 success: true,
                 data: products
@@ -196,11 +198,11 @@ const productController = {
     // Track lượt xem sản phẩm
     trackProductView: async (req, res) => {
         try {
-            const { id } = req.params;
+            const { productId } = req.params;
             const userId = req.user?.id || req.user?.userId;
 
             if (userId) {
-                await Product.trackView(userId, id);
+                await Product.trackView(userId, productId);
             }
 
             res.json({ success: true });
