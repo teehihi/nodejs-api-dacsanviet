@@ -1,1 +1,0 @@
-ALTER TABLE otp_codes ADD COLUMN metadata JSON NULL;
