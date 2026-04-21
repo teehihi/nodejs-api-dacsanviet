@@ -20,7 +20,7 @@ class Favorite {
         const Product = require('./Product');
         // Left join similar to product finding
         const [rows] = await pool.query(`
-      SELECT w.created_at as favorited_at, p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+      SELECT f.created_at as favorited_at, p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
                p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                p.discount_percent, p.discount_price,
@@ -31,8 +31,8 @@ class Favorite {
       FROM product_favorites f
       JOIN products p ON f.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
-      WHERE w.user_id = ? AND CAST(p.is_active AS UNSIGNED) = 1
-      ORDER BY w.created_at DESC
+      WHERE f.user_id = ? AND CAST(p.is_active AS UNSIGNED) = 1
+      ORDER BY f.created_at DESC
     `, [userId]);
         return rows.map(Product.formatProduct);
     }

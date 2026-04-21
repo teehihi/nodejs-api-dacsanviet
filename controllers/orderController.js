@@ -110,7 +110,8 @@ exports.createOrder = async (req, res) => {
     // Notify user + admin after response
     try {
       // 1. Thông báo cho User (Lưu DB + Socket)
-      const userNotifBody = `Đơn hàng ${order.id} của bạn đã được đặt thành công. Chúng tôi sẽ xác nhận sớm nhất có thể.`;
+      const orderCode = order.order_number || order.code || order.id;
+      const userNotifBody = `Đơn hàng ${orderCode} của bạn đã được đặt thành công. Chúng tôi sẽ xác nhận sớm nhất có thể.`;
       const userNotif = await Notification.create({
         userId,
         type: 'ORDER_NEW',
@@ -123,7 +124,7 @@ exports.createOrder = async (req, res) => {
       // 2. Thông báo cho Admin (chỉ khi người đặt KHÔNG phải admin)
       if (req.user.role !== 'ADMIN') {
         const userName = req.user.fullName || req.user.username || 'Khách hàng';
-        const adminNotifBody = `Có đơn hàng mới ${order.id} từ khách hàng ${userName}. Tổng tiền: ${finalAmount.toLocaleString('vi-VN')}đ`;
+        const adminNotifBody = `Có đơn hàng mới ${orderCode} từ khách hàng ${userName}. Tổng tiền: ${finalAmount.toLocaleString('vi-VN')}đ`;
         const adminNotif = await Notification.create({
           userId: null, // broadcast to admin
           type: 'ORDER_NEW',
@@ -139,7 +140,7 @@ exports.createOrder = async (req, res) => {
         // 3. Thông báo đẩy FCM (Background/Terminated)
         notifyAdminsPush({
           title: '🛍️ Đơn hàng mới!',
-          body: `Khách hàng ${userName} vừa đặt đơn hàng ${order.id} giá trị ${finalAmount.toLocaleString('vi-VN')}đ`,
+          body: `Khách hàng ${userName} vừa đặt đơn hàng ${orderCode} giá trị ${finalAmount.toLocaleString('vi-VN')}đ`,
         }, {
           orderId: order.id,
           type: 'NEW_ORDER'
@@ -419,7 +420,7 @@ exports.updateOrderStatus = async (req, res) => {
           userId: order.userId,
           type: `ORDER_${status}`,
           title: label,
-          body: `Đơn hàng ${order.id} - ${label.toLowerCase()}.`,
+          body: `Đơn hàng ${order.order_number || order.code || order.id} - ${label.toLowerCase()}.`,
           data: { orderId: order.id, status },
         });
         notifyUser(order.userId, 'notification', notif);

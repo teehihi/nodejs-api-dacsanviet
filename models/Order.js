@@ -39,7 +39,7 @@ class Order {
           shipping_address_text,
           payment_method, status, order_date, created_at,
           coupon_code, discount_amount, points_used
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)`,
         [
           orderNumber,
           userId,
@@ -339,6 +339,18 @@ class Order {
   }
 
   // Helper: Format order object
+  /** Convert a Date (or mysql2 datetime string) to Vietnam-timezone ISO string */
+  static toVNString(dt) {
+    if (!dt) return null;
+    const d = dt instanceof Date ? dt : new Date(dt);
+    if (isNaN(d)) return null;
+    // Shift to UTC+7
+    const vnMs = d.getTime() + 7 * 60 * 60 * 1000;
+    const vn = new Date(vnMs);
+    const pad = n => String(n).padStart(2, '0');
+    return `${vn.getUTCFullYear()}-${pad(vn.getUTCMonth()+1)}-${pad(vn.getUTCDate())}T${pad(vn.getUTCHours())}:${pad(vn.getUTCMinutes())}:${pad(vn.getUTCSeconds())}+07:00`;
+  }
+
   static async formatOrder(order, providedItems = null) {
     let items = providedItems;
     if (!items) {
@@ -381,7 +393,7 @@ class Order {
       phone: customerPhone,
       customerPhone: customerPhone,
       shipping_address: displayAddress,
-      shippingAddress: displayAddress,
+      shippingAddressText: displayAddress,         // flat string cho các màn hình cũ
       shipping_address_text: order.shipping_address_text,
       total_amount: parseFloat(order.total_amount),
       totalAmount: parseFloat(order.total_amount),
@@ -406,26 +418,26 @@ class Order {
       pointsUsed: parseInt(order.points_used || 0),
       subtotal: parseFloat(order.total_amount) + parseFloat(order.discount_amount || 0) + parseInt(order.points_used || 0),
       
-      // Keep nested for advanced screens
-      fullAddress: {
+      // Nested object cho OrderDetailScreen
+      shippingAddress: {
         fullName: customerName,
         phoneNumber: customerPhone,
-        address: addressParts[2] || "",
-        ward: addressParts[3] || "",
-        district: addressParts[4] || "",
-        city: addressParts[5] || "",
+        address: addressParts[0] || "",
+        ward: addressParts[1] || "",
+        district: addressParts[2] || "",
+        city: addressParts[3] || "",
         note: order.notes || "",
       },
       couponCode: order.coupon_code || null,
       carrierName: order.shipping_carrier || null,
       cancelReason: order.notes || null,
-      createdAt: order.created_at,
+      createdAt: Order.toVNString(order.order_date || order.created_at),
 
-      created_at: order.created_at,
-      order_date: order.order_date,
-      confirmedAt: order.confirmed_at || null,
-      cancelledAt: order.cancelled_at || null,
-      deliveredAt: order.delivered_at || null,
+      created_at: Order.toVNString(order.created_at),
+      order_date: Order.toVNString(order.order_date),
+      confirmedAt: Order.toVNString(order.confirmed_at) || null,
+      cancelledAt: Order.toVNString(order.cancelled_at) || null,
+      deliveredAt: Order.toVNString(order.delivered_at) || null,
       isReviewed: (order.reviews_count !== undefined && order.items_count !== undefined)
         ? (order.reviews_count >= order.items_count && order.items_count > 0)
         : false,
