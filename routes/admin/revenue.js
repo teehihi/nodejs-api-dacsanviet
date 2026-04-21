@@ -7,6 +7,9 @@ const revenueController = require('../../controllers/admin/revenueController');
 router.use(authenticateToken);
 router.use(requireRole(['ADMIN']));
 
+// GET /api/admin/revenue/dashboard - Get unified dashboard data
+router.get('/dashboard', revenueController.getDashboardData);
+
 // GET /api/admin/revenue/overview - Get revenue overview
 router.get('/overview', revenueController.getRevenueOverview);
 

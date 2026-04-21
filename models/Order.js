@@ -164,23 +164,43 @@ class Order {
 
   // Update order status
   static async updateStatus(orderId, status, userId = null, carrierName = null, cancelReason = null, paymentMethod = null, connection = null) {
-    const updates = { status };
+    // Map new status names to DB enum values
+    const statusMap = {
+      'NEW': 'PENDING',
+      'PREPARING': 'PROCESSING', 
+      'SHIPPING': 'SHIPPED',
+      'DELIVERED': 'DELIVERED',
+      'CANCELLED': 'CANCELLED',
+      'CONFIRMED': 'CONFIRMED'
+    };
+    
+    const dbStatus = statusMap[status] || status;
+    const updates = { status: dbStatus };
     const now = new Date();
 
     if (status === 'CONFIRMED') updates.confirmed_at = now;
     else if (status === 'CANCELLED') updates.cancelled_at = now;
     else if (status === 'DELIVERED') updates.delivered_at = now;
     
-    if (carrierName) updates.carrier_name = carrierName;
-    if (cancelReason) updates.cancel_reason = cancelReason;
+    if (carrierName) updates.shipping_carrier = carrierName;
+    if (cancelReason) updates.notes = cancelReason; // Use notes column for cancel reason
     if (paymentMethod) updates.payment_method = paymentMethod;
 
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     const values = Object.values(updates);
 
-    let query = `UPDATE orders SET ${fields}, updated_at = NOW() WHERE (id = ? OR order_number = ?)`;
-    const params = [...values, orderId, orderId];
-
+    // Check if orderId is numeric or string to avoid SQL type mismatch
+    const isNumeric = !isNaN(orderId) && !isNaN(parseFloat(orderId));
+    let query = `UPDATE orders SET ${fields}, updated_at = NOW() WHERE `;
+    const params = [...values];
+    
+    if (isNumeric) {
+      query += `id = ?`;
+      params.push(orderId);
+    } else {
+      query += `order_number = ?`;
+      params.push(orderId);
+    }
 
     if (userId) {
       query += ` AND user_id = ?`;
@@ -339,8 +359,10 @@ class Order {
     const displayAddress = addressParts.slice(2).join(", ") || order.shipping_address_text || "";
 
     // Map database statuses to match Flutter UI expectations
-    let finalStatus = (order.status || 'NEW').toUpperCase();
-    if (finalStatus === 'PROCESSING') finalStatus = 'NEW';
+    let finalStatus = (order.status || 'PENDING').toUpperCase();
+    // Map DB enum to UI status names
+    if (finalStatus === 'PENDING') finalStatus = 'NEW';
+    if (finalStatus === 'PROCESSING') finalStatus = 'PREPARING';
     if (finalStatus === 'SHIPPED') finalStatus = 'SHIPPING';
 
     return {
@@ -395,8 +417,8 @@ class Order {
         note: order.notes || "",
       },
       couponCode: order.coupon_code || null,
-      carrierName: order.carrier_name || null,
-      cancelReason: order.cancel_reason || null,
+      carrierName: order.shipping_carrier || null,
+      cancelReason: order.notes || null,
       createdAt: order.created_at,
 
       created_at: order.created_at,
