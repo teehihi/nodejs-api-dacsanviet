@@ -32,8 +32,6 @@ exports.getAllProducts = async (req, res) => {
     }
 
     if (search) {
-      // Use COLLATE utf8mb4_general_ci or similar for accent-insensitive search if needed
-      // Most MySQL setups are case and accent insensitive by default with general_ci
       query += ` AND (p.name LIKE ? OR p.description LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
@@ -42,6 +40,20 @@ exports.getAllProducts = async (req, res) => {
     params.push(parseInt(limit), parseInt(offset));
 
     const [products] = await pool.query(query, params);
+
+    // Load images for each product
+    for (let product of products) {
+      const [images] = await pool.query(
+        'SELECT id, image_url, is_primary, display_order, alt_text FROM product_images WHERE product_id = ? ORDER BY display_order ASC, is_primary DESC',
+        [product.id]
+      );
+      product.images = images;
+      // Set primary image as image_url for backward compatibility
+      if (images.length > 0) {
+        const primaryImage = images.find(img => img.is_primary) || images[0];
+        product.image_url = primaryImage.image_url;
+      }
+    }
 
     // Get total count
     let countQuery = `SELECT COUNT(*) as total FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE 1=1`;
@@ -88,12 +100,6 @@ exports.createProduct = async (req, res) => {
       discount_percent, is_active, is_featured,
     } = req.body;
 
-    let image_url = req.body.image_url || null;
-    if (req.file) {
-      // Save relative path for static serving
-      image_url = '/' + req.file.path.replace(/\\/g, '/').replace('public/', '');
-    }
-
     // Parse numeric values properly (multipart sends everything as strings)
     const parsedPrice = parseInt(price) || 0;
     const parsedStock = parseInt(stock_quantity) || 0;
@@ -104,21 +110,67 @@ exports.createProduct = async (req, res) => {
       ? parsedPrice * (1 - parsedDiscount / 100)
       : null;
 
+    // Create product first (without image_url in main table)
     const [result] = await pool.query(
       `INSERT INTO products (
-        name, description, short_description, price, image_url, category_id,
+        name, description, short_description, price, category_id,
         supplier_id, stock_quantity, origin, weight_grams,
         discount_percent, discount_price, is_active, is_featured, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
-        name, description || name, short_description || null, parsedPrice, image_url, category_id,
+        name, description || name, short_description || null, parsedPrice, category_id,
         supplier_id || null, parsedStock, origin || null, parsedWeight,
         parsedDiscount, discount_price, is_active !== false ? 1 : 0,
         is_featured ? 1 : 0,
       ]
     );
 
-    const [product] = await pool.query('SELECT * FROM products WHERE id = ?', [result.insertId]);
+    const productId = result.insertId;
+
+    // Handle multiple image uploads
+    if (req.files && req.files.length > 0) {
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        const image_url = '/' + file.path.replace(/\\/g, '/').replace('public/', '');
+        
+        await pool.query(
+          `INSERT INTO product_images (product_id, image_url, display_order, is_primary, created_at) 
+           VALUES (?, ?, ?, ?, NOW())`,
+          [productId, image_url, i, i === 0 ? 1 : 0] // First image is primary
+        );
+      }
+
+      // Update main product table with primary image for backward compatibility
+      const [primaryImage] = await pool.query(
+        'SELECT image_url FROM product_images WHERE product_id = ? AND is_primary = 1 LIMIT 1',
+        [productId]
+      );
+      if (primaryImage.length > 0) {
+        await pool.query(
+          'UPDATE products SET image_url = ? WHERE id = ?',
+          [primaryImage[0].image_url, productId]
+        );
+      }
+    } else if (req.body.image_url) {
+      // Fallback: single image URL from body
+      await pool.query(
+        'UPDATE products SET image_url = ? WHERE id = ?',
+        [req.body.image_url, productId]
+      );
+      await pool.query(
+        `INSERT INTO product_images (product_id, image_url, display_order, is_primary, created_at) 
+         VALUES (?, ?, 0, 1, NOW())`,
+        [productId, req.body.image_url]
+      );
+    }
+
+    // Fetch complete product with images
+    const [product] = await pool.query('SELECT * FROM products WHERE id = ?', [productId]);
+    const [images] = await pool.query(
+      'SELECT id, image_url, is_primary, display_order, alt_text FROM product_images WHERE product_id = ? ORDER BY display_order ASC',
+      [productId]
+    );
+    product[0].images = images;
 
     res.status(201).json({
       success: true,
@@ -143,17 +195,44 @@ exports.updateProduct = async (req, res) => {
     if (updates.weight_grams !== undefined) updates.weight_grams = parseInt(updates.weight_grams) || null;
     if (updates.discount_percent !== undefined) updates.discount_percent = parseFloat(updates.discount_percent) || null;
 
-    // Handle Image Upload
-    if (req.file) {
-      // Get old product to delete old image
-      const [oldProduct] = await pool.query('SELECT image_url FROM products WHERE id = ?', [id]);
-      if (oldProduct.length > 0 && oldProduct[0].image_url && oldProduct[0].image_url.startsWith('/uploads/')) {
-        const oldPath = path.join(__dirname, '../../public', oldProduct[0].image_url);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
+    // Handle Multiple Image Uploads
+    if (req.files && req.files.length > 0) {
+      // Get old images to delete
+      const [oldImages] = await pool.query('SELECT image_url FROM product_images WHERE product_id = ?', [id]);
+      
+      // Delete old image files
+      for (const oldImg of oldImages) {
+        if (oldImg.image_url && oldImg.image_url.startsWith('/uploads/')) {
+          const oldPath = path.join(__dirname, '../../public', oldImg.image_url);
+          if (fs.existsSync(oldPath)) {
+            fs.unlinkSync(oldPath);
+          }
         }
       }
-      updates.image_url = '/' + req.file.path.replace(/\\/g, '/').replace('public/', '');
+
+      // Delete old image records
+      await pool.query('DELETE FROM product_images WHERE product_id = ?', [id]);
+
+      // Insert new images
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        const image_url = '/' + file.path.replace(/\\/g, '/').replace('public/', '');
+        
+        await pool.query(
+          `INSERT INTO product_images (product_id, image_url, display_order, is_primary, created_at) 
+           VALUES (?, ?, ?, ?, NOW())`,
+          [id, image_url, i, i === 0 ? 1 : 0]
+        );
+      }
+
+      // Update main product table with primary image
+      const [primaryImage] = await pool.query(
+        'SELECT image_url FROM product_images WHERE product_id = ? AND is_primary = 1 LIMIT 1',
+        [id]
+      );
+      if (primaryImage.length > 0) {
+        updates.image_url = primaryImage[0].image_url;
+      }
     }
 
     // Recalculate discount_price if discount_percent or price changed
@@ -176,7 +255,13 @@ exports.updateProduct = async (req, res) => {
       );
     }
 
+    // Fetch complete product with images
     const [product] = await pool.query('SELECT * FROM products WHERE id = ?', [id]);
+    const [images] = await pool.query(
+      'SELECT id, image_url, is_primary, display_order, alt_text FROM product_images WHERE product_id = ? ORDER BY display_order ASC',
+      [id]
+    );
+    product[0].images = images;
 
     res.json({
       success: true,

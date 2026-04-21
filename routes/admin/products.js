@@ -14,11 +14,11 @@ router.get('/', productAdminController.getAllProducts);
 // GET /api/admin/products/stats - Get product statistics
 router.get('/stats', productAdminController.getProductStats);
 
-// POST /api/admin/products - Create product (with image)
-router.post('/', uploadProduct.single('image'), productAdminController.createProduct);
+// POST /api/admin/products - Create product (with multiple images)
+router.post('/', uploadProduct.array('images', 5), productAdminController.createProduct);
 
-// PUT /api/admin/products/:id - Update product (with image)
-router.put('/:id', uploadProduct.single('image'), productAdminController.updateProduct);
+// PUT /api/admin/products/:id - Update product (with multiple images)
+router.put('/:id', uploadProduct.array('images', 5), productAdminController.updateProduct);
 
 // DELETE /api/admin/products/:id - Delete product (soft delete)
 router.delete('/:id', productAdminController.deleteProduct);
