@@ -282,6 +282,35 @@ exports.cancelOrder = async (req, res) => {
         : "Hủy đơn hàng thành công",
       data: { order: updatedOrder },
     });
+
+    // Notify user + admin about cancellation
+    try {
+      const isRequest = updatedOrder.status === "CANCEL_REQUESTED";
+      const title = isRequest ? 'Yêu cầu hủy đơn hàng' : 'Đơn hàng đã hủy';
+      const body = `Đơn hàng ${updatedOrder.order_number || updatedOrder.code || updatedOrder.id} ${isRequest ? 'đang chờ xác nhận hủy' : 'đã được hủy thành công'}.`;
+      
+      const notif = await Notification.create({
+        userId,
+        type: isRequest ? 'ORDER_CANCEL_REQUESTED' : 'ORDER_CANCELLED',
+        title,
+        body,
+        data: { orderId: updatedOrder.id },
+      });
+      notifyUser(userId, 'notification', notif);
+
+      // Notify admin
+      const adminBody = `Khách hàng ${req.user.fullName || req.user.username} ${isRequest ? 'yêu cầu hủy' : 'đã hủy'} đơn hàng ${updatedOrder.order_number || updatedOrder.code || updatedOrder.id}.`;
+      const adminNotif = await Notification.create({
+        userId: null,
+        type: isRequest ? 'ORDER_CANCEL_REQUESTED' : 'ORDER_CANCELLED',
+        title: isRequest ? 'Yêu cầu hủy đơn' : 'Đơn hàng bị hủy',
+        body: adminBody,
+        data: { orderId: updatedOrder.id },
+      });
+      notifyAdmin('notification', adminNotif);
+    } catch (e) {
+      console.error('Notify cancel error:', e.message);
+    }
   } catch (error) {
     if (connection) await connection.rollback();
     console.error('Cancel order error:', error);
@@ -407,15 +436,45 @@ exports.updateOrderStatus = async (req, res) => {
     // Notify user about status change
     try {
       const labels = {
+        NEW: 'Đơn hàng mới tạo',
         CONFIRMED: 'Đơn hàng đã được xác nhận',
         PREPARING: 'Đang chuẩn bị hàng',
         SHIPPING: 'Đơn hàng đang được giao',
         DELIVERED: 'Đơn hàng đã giao thành công',
         CANCELLED: 'Đơn hàng đã bị hủy',
         CANCEL_REQUESTED: 'Yêu cầu hủy đơn hàng',
+        RETURNED: 'Đơn hàng đã được hoàn trả',
       };
       const label = labels[status];
       if (label && order.userId) {
+        // Special logic for DELIVERED: Award loyalty points
+        if (status === 'DELIVERED' && oldOrder.status !== 'DELIVERED') {
+          try {
+            const rewardPoints = Math.floor(order.totalAmount * 0.01); // 1% reward points
+            if (rewardPoints > 0) {
+              const pointConn = await pool.getConnection();
+              await pointConn.beginTransaction();
+              try {
+                await LoyaltyPoints.addPoints(
+                  pointConn, 
+                  order.userId, 
+                  rewardPoints, 
+                  'ORDER_DELIVERED', 
+                  `Điểm thưởng cho đơn hàng ${order.order_number || order.id}`,
+                  order.id
+                );
+                await pointConn.commit();
+                console.log(`✅ Awarded ${rewardPoints} points to user ${order.userId} for order ${order.id}`);
+              } catch (err) {
+                await pointConn.rollback();
+                console.error('Failed to award points:', err.message);
+              } finally {
+                pointConn.release();
+              }
+            }
+          } catch (e) { console.error('Points awarding error:', e.message); }
+        }
+
         const notif = await Notification.create({
           userId: order.userId,
           type: `ORDER_${status}`,

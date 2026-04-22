@@ -15,7 +15,9 @@ class Product {
                CAST(p.is_active AS UNSIGNED) as is_active,
                CAST(p.is_featured AS UNSIGNED) as is_featured,
                c.name as category_name,
-               (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status NOT IN ('CANCELLED', 'CANCEL_REQUESTED')) as totalSold
+               (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id) as totalSold,
+               (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id = p.id) as reviewCount,
+               (SELECT IFNULL(AVG(rating), 0) FROM product_reviews pr WHERE pr.product_id = p.id) as avgRating
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE CAST(p.is_active AS UNSIGNED) = 1
@@ -143,7 +145,7 @@ class Product {
                (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id = p.id) as reviewCount,
                (SELECT IFNULL(AVG(rating), 0) FROM product_reviews pr WHERE pr.product_id = p.id) as avgRating,
                (SELECT COUNT(*) FROM product_qa pq WHERE pq.product_id = p.id AND pq.parent_id IS NULL) as commentCount,
-               (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status NOT IN ('CANCELLED', 'CANCEL_REQUESTED')) as totalSold,
+               (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id) as totalSold,
                (SELECT COUNT(DISTINCT o.user_id) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status NOT IN ('CANCELLED', 'CANCEL_REQUESTED')) as buyerCount
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
@@ -213,7 +215,9 @@ class Product {
                        CAST(p.is_active AS UNSIGNED) as is_active,
                        CAST(p.is_featured AS UNSIGNED) as is_featured,
                        c.name as category_name,
-                       (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status NOT IN ('CANCELLED', 'CANCEL_REQUESTED')) as totalSold
+                       (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id) as totalSold,
+                       (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id = p.id) as reviewCount,
+                       (SELECT IFNULL(AVG(rating), 0) FROM product_reviews pr WHERE pr.product_id = p.id) as avgRating
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 WHERE CAST(p.is_active AS UNSIGNED) = 1
@@ -242,7 +246,9 @@ class Product {
                        CAST(p.is_active AS UNSIGNED) as is_active,
                        CAST(p.is_featured AS UNSIGNED) as is_featured,
                        c.name as category_name,
-                       (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status NOT IN ('CANCELLED', 'CANCEL_REQUESTED')) as totalSold
+                       (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id) as totalSold,
+                       (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id = p.id) as reviewCount,
+                       (SELECT IFNULL(AVG(rating), 0) FROM product_reviews pr WHERE pr.product_id = p.id) as avgRating
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 WHERE CAST(p.is_active AS UNSIGNED) = 1
@@ -288,7 +294,7 @@ class Product {
             category: dbProduct.category_name || 'Uncategorized',
             imageUrl: dbProduct.image_url || '',
             storyImageUrl: dbProduct.story_image_url || null,
-            rating: parseFloat(dbProduct.avgRating) || 4.5,
+            rating: parseFloat(dbProduct.avgRating) || 0,
             soldCount: parseInt(dbProduct.totalSold) || dbProduct.sold_quantity || 0,
             isActive: dbProduct.is_active === 1,
             createdAt: dbProduct.created_at,
@@ -317,7 +323,9 @@ class Product {
                        CAST(p.is_active AS UNSIGNED) as is_active,
                        CAST(p.is_featured AS UNSIGNED) as is_featured,
                        c.name as category_name,
-                       (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id AND o.status NOT IN ('CANCELLED', 'CANCEL_REQUESTED')) as totalSold
+                       (SELECT IFNULL(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE oi.product_id = p.id) as totalSold,
+                       (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id = p.id) as reviewCount,
+                       (SELECT IFNULL(AVG(rating), 0) FROM product_reviews pr WHERE pr.product_id = p.id) as avgRating
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 WHERE p.category_id = ? AND p.id != ? AND CAST(p.is_active AS UNSIGNED) = 1
