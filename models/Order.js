@@ -230,7 +230,7 @@ class Order {
 
     // 1. If status is NEW and within 30 mins -> Cancel immediately with refund
     if (order.status === 'NEW' && now <= cancelDeadline) {
-      return await this.updateStatus(orderId, 'CANCELLED', userId, null, connection);
+      return await this.updateStatus(orderId, 'CANCELLED', userId, null, null, null, null, connection);
     }
 
     // 2. If status is NEW but already past 30 mins (should be CONFIRMED soon)
@@ -245,7 +245,7 @@ class Order {
 
     // 4. If status is PREPARING -> Allow cancellation request (Shop approval needed)
     if (order.status === 'PREPARING') {
-      return await this.updateStatus(orderId, 'CANCEL_REQUESTED', userId, null, connection);
+      return await this.updateStatus(orderId, 'CANCEL_REQUESTED', userId, null, null, null, null, connection);
     }
 
     // Default: Not allowed to cancel in other statuses (SHIPPING, DELIVERED, etc.)
