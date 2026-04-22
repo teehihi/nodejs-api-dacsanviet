@@ -22,6 +22,19 @@ exports.getRevenueOverview = async (req, res) => {
         SUM(total_amount) as total_revenue,
         AVG(total_amount) as avg_order_value,
         SUM(CASE WHEN status = 'DELIVERED' THEN total_amount ELSE 0 END) as delivered_revenue,
+        SUM(CASE 
+          WHEN status = 'DELIVERED' THEN 
+            total_amount - (
+              CASE 
+                WHEN shipping_carrier LIKE '%Giao Hàng Nhanh%' OR shipping_carrier = 'GHN' THEN 22000
+                WHEN shipping_carrier LIKE '%J&T%' THEN 18000
+                WHEN shipping_carrier LIKE '%Viettel%' THEN 15000
+                WHEN shipping_carrier LIKE '%Giao Hàng Tiết Kiệm%' OR shipping_carrier = 'GHTK' THEN 12000
+                ELSE 15000
+              END
+            )
+          ELSE 0 
+        END) as delivered_profit,
         SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered_count,
         SUM(CASE WHEN status = 'CANCELLED' THEN total_amount ELSE 0 END) as cancelled_revenue,
         SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled_count,
@@ -221,25 +234,37 @@ exports.getRevenueByPaymentMethod = async (req, res) => {
   }
 };
 
-// GET profit analysis (doanh thu - chi phí)
-// Note: Hiện tại chưa có bảng chi phí, tạm tính profit = revenue * 0.3 (30% margin)
+// GET profit analysis (doanh thu - chi phí vận chuyển)
 exports.getProfitAnalysis = async (req, res) => {
   try {
     const [data] = await pool.query(`
       SELECT
-        DATE_FORMAT(created_at, '%Y-%m') as month,
+        DATE_FORMAT(COALESCE(delivered_at, created_at), '%Y-%m') as month,
         SUM(CASE WHEN status = 'DELIVERED' THEN total_amount ELSE 0 END) as revenue,
-        SUM(CASE WHEN status = 'DELIVERED' THEN total_amount * 0.3 ELSE 0 END) as estimated_profit
+        SUM(CASE 
+          WHEN status = 'DELIVERED' THEN 
+            total_amount - (
+              CASE 
+                WHEN shipping_carrier LIKE '%Giao Hàng Nhanh%' OR shipping_carrier = 'GHN' THEN 22000
+                WHEN shipping_carrier LIKE '%J&T%' THEN 18000
+                WHEN shipping_carrier LIKE '%Viettel%' THEN 15000
+                WHEN shipping_carrier LIKE '%Giao Hàng Tiết Kiệm%' OR shipping_carrier = 'GHTK' THEN 12000
+                ELSE 15000 -- Phí mặc định
+              END
+            )
+          ELSE 0 
+        END) as profit
       FROM orders
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-      GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+      WHERE status = 'DELIVERED' 
+        AND COALESCE(delivered_at, created_at) >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+      GROUP BY month
       ORDER BY month DESC
     `);
 
     res.json({
       success: true,
       data,
-      note: 'Profit tạm tính = Revenue * 30% (chưa có dữ liệu chi phí thực tế)',
+      note: 'Lợi nhuận = Doanh thu - Phí vận chuyển (Tính theo đơn vị vận chuyển)',
     });
   } catch (error) {
     console.error('Get profit analysis error:', error);
@@ -291,6 +316,19 @@ exports.getDashboardData = async (req, res) => {
         SUM(total_amount) as total_revenue,
         AVG(total_amount) as avg_order_value,
         SUM(CASE WHEN status = 'DELIVERED' THEN total_amount ELSE 0 END) as delivered_revenue,
+        SUM(CASE 
+          WHEN status = 'DELIVERED' THEN 
+            total_amount - (
+              CASE 
+                WHEN shipping_carrier LIKE '%Giao Hàng Nhanh%' OR shipping_carrier = 'GHN' THEN 22000
+                WHEN shipping_carrier LIKE '%J&T%' THEN 18000
+                WHEN shipping_carrier LIKE '%Viettel%' THEN 15000
+                WHEN shipping_carrier LIKE '%Giao Hàng Tiết Kiệm%' OR shipping_carrier = 'GHTK' THEN 12000
+                ELSE 15000
+              END
+            )
+          ELSE 0 
+        END) as delivered_profit,
         SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered_count,
         SUM(CASE WHEN status = 'CANCELLED' THEN total_amount ELSE 0 END) as cancelled_revenue,
         SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled_count,
@@ -424,6 +462,23 @@ exports.getDashboardData = async (req, res) => {
           AND delivered_at IS NOT NULL
           AND MONTH(delivered_at) = MONTH(NOW())
           AND YEAR(delivered_at) = YEAR(NOW())
+          THEN 
+            total_amount - (
+              CASE 
+                WHEN shipping_carrier LIKE '%Giao Hàng Nhanh%' OR shipping_carrier = 'GHN' THEN 22000
+                WHEN shipping_carrier LIKE '%J&T%' THEN 18000
+                WHEN shipping_carrier LIKE '%Viettel%' THEN 15000
+                WHEN shipping_carrier LIKE '%Giao Hàng Tiết Kiệm%' OR shipping_carrier = 'GHTK' THEN 12000
+                ELSE 15000
+              END
+            )
+          ELSE 0 
+        END) as current_month_profit,
+        SUM(CASE 
+          WHEN status = 'DELIVERED' 
+          AND delivered_at IS NOT NULL
+          AND MONTH(delivered_at) = MONTH(NOW())
+          AND YEAR(delivered_at) = YEAR(NOW())
           THEN 1 ELSE 0 
         END) as current_month_orders,
         -- Last month
@@ -434,6 +489,23 @@ exports.getDashboardData = async (req, res) => {
           AND YEAR(delivered_at) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))
           THEN total_amount ELSE 0 
         END) as last_month_revenue,
+        SUM(CASE 
+          WHEN status = 'DELIVERED' 
+          AND delivered_at IS NOT NULL
+          AND MONTH(delivered_at) = MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH))
+          AND YEAR(delivered_at) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))
+          THEN 
+            total_amount - (
+              CASE 
+                WHEN shipping_carrier LIKE '%Giao Hàng Nhanh%' OR shipping_carrier = 'GHN' THEN 22000
+                WHEN shipping_carrier LIKE '%J&T%' THEN 18000
+                WHEN shipping_carrier LIKE '%Viettel%' THEN 15000
+                WHEN shipping_carrier LIKE '%Giao Hàng Tiết Kiệm%' OR shipping_carrier = 'GHTK' THEN 12000
+                ELSE 15000
+              END
+            )
+          ELSE 0 
+        END) as last_month_profit,
         SUM(CASE 
           WHEN status = 'DELIVERED' 
           AND delivered_at IS NOT NULL

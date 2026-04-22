@@ -33,7 +33,7 @@ exports.getAllOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status, carrierName, cancelReason, paymentMethod } = req.body;
+    const { status, carrierName, shippingFee, cancelReason, paymentMethod } = req.body;
 
     const validStatuses = [
       'NEW', 'PREPARING', 'SHIPPING', 'DELIVERED', 'CANCELLED', 'CANCEL_REQUESTED', 'RETURNED'
@@ -62,7 +62,7 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.updateStatus(orderId, status, null, carrierName, cancelReason, paymentMethod);
+    const order = await Order.updateStatus(orderId, status, null, carrierName, cancelReason, paymentMethod, shippingFee);
 
 
     if (!order) {

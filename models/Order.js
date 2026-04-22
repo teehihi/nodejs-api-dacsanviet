@@ -163,7 +163,7 @@ class Order {
   }
 
   // Update order status
-  static async updateStatus(orderId, status, userId = null, carrierName = null, cancelReason = null, paymentMethod = null, connection = null) {
+  static async updateStatus(orderId, status, userId = null, carrierName = null, cancelReason = null, paymentMethod = null, shippingFee = null, connection = null) {
     // Map new status names to DB enum values
     const statusMap = {
       'NEW': 'PENDING',
@@ -183,6 +183,7 @@ class Order {
     else if (status === 'DELIVERED') updates.delivered_at = now;
     
     if (carrierName) updates.shipping_carrier = carrierName;
+    if (shippingFee !== null) updates.shipping_fee = shippingFee;
     if (cancelReason) updates.notes = cancelReason; // Use notes column for cancel reason
     if (paymentMethod) updates.payment_method = paymentMethod;
 

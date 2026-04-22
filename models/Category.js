@@ -35,11 +35,20 @@ class Category {
 
     static async create(data) {
         try {
-            const { name, description, image_url, parent_id, is_active = 1 } = data;
+            const { name, description, image_url, parent_id, is_active } = data;
+            // Ensure is_active is 0 or 1 for BIT(1), default to 1 (active)
+            const activeValue = (is_active === 'false' || is_active === false || is_active === 0) ? 0 : 1;
+            
             const [result] = await pool.execute(`
                 INSERT INTO categories (name, description, image_url, parent_id, is_active, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-            `, [name, description, image_url, parent_id, is_active]);
+            `, [
+                name, 
+                description || null, 
+                image_url || null, 
+                parent_id || null, 
+                activeValue
+            ]);
             
             return result.insertId;
         } catch (error) {
@@ -71,7 +80,8 @@ class Category {
             }
             if (data.is_active !== undefined) {
                 updates.push('is_active = ?');
-                params.push(data.is_active);
+                const activeValue = (data.is_active === 'false' || data.is_active === false || data.is_active === 0) ? 0 : 1;
+                params.push(activeValue);
             }
             
             if (updates.length === 0) return false;

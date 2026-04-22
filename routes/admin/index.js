@@ -11,5 +11,6 @@ router.use('/users', require('./users'));
 router.use('/products', require('./products'));
 router.use('/coupons', require('./coupons'));
 router.use('/revenue', require('./revenue'));
+router.use('/ai', require('./ai'));
 
 module.exports = router;
