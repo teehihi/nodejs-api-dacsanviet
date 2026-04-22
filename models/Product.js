@@ -149,7 +149,29 @@ class Product {
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id = ? AND CAST(p.is_active AS UNSIGNED) = 1
       `, [id]);
-            return rows.length > 0 ? Product.formatProduct(rows[0]) : null;
+            
+            if (rows.length === 0) return null;
+            
+            // Load product images from product_images table
+            const [imageRows] = await pool.execute(`
+                SELECT id, image_url, display_order, CAST(is_primary AS UNSIGNED) as is_primary, alt_text
+                FROM product_images
+                WHERE product_id = ?
+                ORDER BY display_order ASC
+            `, [id]);
+            
+            const product = Product.formatProduct(rows[0]);
+            
+            // Add images array to product
+            product.images = imageRows.map(img => ({
+                id: img.id,
+                imageUrl: img.image_url,
+                displayOrder: img.display_order,
+                isPrimary: img.is_primary === 1,
+                altText: img.alt_text
+            }));
+            
+            return product;
         } catch (error) {
             console.error('Error finding product by ID:', error);
             throw error;
@@ -265,6 +287,7 @@ class Product {
             discountPercentage: discountPercentage > 0 ? discountPercentage : null,
             category: dbProduct.category_name || 'Uncategorized',
             imageUrl: dbProduct.image_url || '',
+            storyImageUrl: dbProduct.story_image_url || null,
             rating: parseFloat(dbProduct.avgRating) || 4.5,
             soldCount: parseInt(dbProduct.totalSold) || dbProduct.sold_quantity || 0,
             isActive: dbProduct.is_active === 1,
