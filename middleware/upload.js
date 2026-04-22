@@ -17,6 +17,21 @@ const productStorage = multer.diskStorage({
     }
 });
 
+// Storage configuration for Category images
+const categoryStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = 'public/uploads/categories';
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'category-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
 // File filter (images only - temporarily allowing all for debugging)
 const fileFilter = (req, file, cb) => {
     console.log('🖼️ Multer filtering file:', file.originalname, 'mimetype:', file.mimetype);
@@ -30,6 +45,13 @@ const uploadProduct = multer({
     fileFilter: fileFilter
 });
 
+const uploadCategory = multer({
+    storage: categoryStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: fileFilter
+});
+
 module.exports = {
-    uploadProduct
+    uploadProduct,
+    uploadCategory
 };
