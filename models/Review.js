@@ -59,8 +59,8 @@ class Review {
 
             // Insert review
             const [result] = await connection.query(
-                'INSERT INTO product_reviews (user_id, product_id, order_id, rating, comment) VALUES (?, ?, ?, ?, ?)',
-                [userId, productId, orderId, rating, commentTrimmed]
+                'INSERT INTO product_reviews (user_id, product_id, order_id, rating, comment, reviewer_email, reviewer_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+                [userId, productId, orderId, rating, commentTrimmed, reviewerEmail, reviewerName]
             );
             const reviewId = result.insertId;
             let reward = null;
