@@ -247,6 +247,13 @@ const startServer = async () => {
     // Ensure notifications table
     await Notification.ensureTable();
 
+    // Init flash sale tables + scheduler
+    const { ensureTables: ensureFlashSaleTables, runFlashSaleScheduler } = require('./services/flashSaleService');
+    await ensureFlashSaleTables();
+    await runFlashSaleScheduler(); // Chạy ngay khi khởi động
+    setInterval(runFlashSaleScheduler, 60 * 1000); // Kiểm tra mỗi phút
+    console.log('⚡ Flash sale scheduler started');
+
     // Start server
     httpServer.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
