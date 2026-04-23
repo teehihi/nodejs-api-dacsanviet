@@ -31,7 +31,7 @@ class LoyaltyPoints {
 
         // Insert to transaction history
         await connection.query(`
-            INSERT INTO point_transactions (user_id, points, remaining_points, type, description, ref_id, expires_at)
+            INSERT INTO point_transactions (user_id, points, remaining_points, type, description, review_id, expires_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `, [userId, points, points, type, `${description} (Hết hạn sau 30 ngày)`, refId, expiresAt]);
 
@@ -75,7 +75,7 @@ class LoyaltyPoints {
 
         // 2. Record the usage transaction
         await connection.query(`
-            INSERT INTO point_transactions (user_id, points, remaining_points, type, description, ref_id)
+            INSERT INTO point_transactions (user_id, points, remaining_points, type, description, order_id)
             VALUES (?, ?, 0, 'SPEND_ORDER', 'Dùng điểm cho đơn hàng', ?)
         `, [userId, -pointsToUse, orderId]);
 
@@ -96,7 +96,7 @@ class LoyaltyPoints {
         expiresAt.setDate(expiresAt.getDate() + 30);
 
         await connection.query(`
-            INSERT INTO point_transactions (user_id, points, remaining_points, type, description, ref_id, expires_at)
+            INSERT INTO point_transactions (user_id, points, remaining_points, type, description, order_id, expires_at)
             VALUES (?, ?, ?, 'REFUND_ORDER', 'Hoàn điểm cho đơn hàng hủy', ?, ?)
         `, [userId, pointsToRefund, pointsToRefund, orderId, expiresAt]);
 
@@ -111,7 +111,7 @@ class LoyaltyPoints {
 
     static async getHistory(userId) {
         const [rows] = await pool.query(`
-            SELECT id, points, type, description, ref_id, expires_at, created_at,
+            SELECT id, points, type, description, order_id, review_id, expires_at, created_at,
                    (expires_at < NOW() AND remaining_points > 0) as is_expired
             FROM point_transactions 
             WHERE user_id = ? 

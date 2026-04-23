@@ -61,15 +61,19 @@ exports.createCoupon = async (req, res) => {
       usage_limit, expires_at, description, is_active,
     } = req.body;
 
+    const discountType = (type === 'PERCENTAGE') ? 'PERCENT' : (type || 'FIXED');
+
     const [result] = await pool.query(
       `INSERT INTO coupons (
         code, discount_type, discount_value, min_order_amount, max_discount_amount,
-        max_uses, expires_at, is_active, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        max_uses, expires_at, description, is_active, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
-        code.toUpperCase(), type, value, min_order_amount || 0,
+        code.toUpperCase(), discountType, value, min_order_amount || 0,
         max_discount_amount || null, usage_limit || 1,
-        expires_at || req.body.valid_to, is_active !== false ? 1 : 0,
+        expires_at ? new Date(expires_at).toISOString().slice(0, 19).replace('T', ' ') : (req.body.valid_to ? new Date(req.body.valid_to).toISOString().slice(0, 19).replace('T', ' ') : null),
+        description || null,
+        is_active !== false ? 1 : 0,
       ]
     );
 
@@ -98,12 +102,25 @@ exports.updateCoupon = async (req, res) => {
     if (updates.code) {
       updates.code = updates.code.toUpperCase();
     }
+    // Map Flutter field names -> DB column names
+    if (updates.type !== undefined) { updates.discount_type = updates.type === 'PERCENTAGE' ? 'PERCENT' : updates.type; delete updates.type; }
+    if (updates.discount_type === 'PERCENTAGE') updates.discount_type = 'PERCENT';
+    if (updates.value !== undefined) { updates.discount_value = updates.value; delete updates.value; }
+    if (updates.usage_limit !== undefined) { updates.max_uses = updates.usage_limit; delete updates.usage_limit; }
+    if (updates.valid_to !== undefined) { 
+      updates.expires_at = updates.valid_to ? new Date(updates.valid_to).toISOString().slice(0, 19).replace('T', ' ') : null;
+      delete updates.valid_to; 
+    }
+    // Remove columns that don't exist in DB
+    delete updates.id;
+    delete updates.valid_from;
+    delete updates.updated_at;
 
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     const values = Object.values(updates);
 
     await pool.query(
-      `UPDATE coupons SET ${fields}, updated_at = NOW() WHERE id = ?`,
+      `UPDATE coupons SET ${fields} WHERE id = ?`,
       [...values, id]
     );
 

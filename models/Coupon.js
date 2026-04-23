@@ -88,7 +88,7 @@ class Coupon {
         // Personal coupons (from reviews, etc.)
         const [coupons] = await pool.query(`
             SELECT id, code, discount_type, discount_value, max_discount_amount, min_order_amount,
-                   expires_at, source, 'coupon' as table_source
+                   expires_at, source, description, 'coupon' as table_source
             FROM coupons
             WHERE (user_id = ? OR user_id IS NULL) AND is_active = 1 AND expires_at > NOW()
               AND used_count < max_uses

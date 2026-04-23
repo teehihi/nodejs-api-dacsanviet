@@ -2,7 +2,7 @@ const { pool } = require('../config/database');
 const LoyaltyPoints = require('./LoyaltyPoints');
 
 const REVIEW_WINDOW_DAYS = 10;
-const MIN_COMMENT_LENGTH = 20;
+const MIN_COMMENT_LENGTH = 5; // Chỉ cần nhập tối thiểu 5 ký tự để nhận thưởng
 
 class Review {
     /**
@@ -66,8 +66,8 @@ class Review {
             let reward = null;
 
             if (isEligibleForReward) {
-                // Reward: 500 points
-                const pointsReward = 500;
+                // Reward: 50 points
+                const pointsReward = 50;
                 await LoyaltyPoints.addPoints(
                     connection, userId, pointsReward,
                     'EARN_REVIEW', 'Tặng điểm đánh giá sản phẩm', reviewId
