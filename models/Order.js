@@ -37,9 +37,9 @@ class Order {
           order_number, user_id, total_amount,
           customer_name, customer_phone, customer_email,
           shipping_address_text,
-          payment_method, status, order_date, created_at,
+          payment_method, status, payment_status, order_date, created_at,
           coupon_code, discount_amount, points_used
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', ?, ?, ?, ?, ?)`,
         [
           orderNumber,
           userId,
@@ -401,7 +401,8 @@ class Order {
       payment_method: order.payment_method,
       paymentMethod: order.payment_method,
       status: finalStatus, // Mapped status for UI
-      
+      payment_status: order.payment_status, // THÊM TRƯỜNG NÀY
+      paymentStatus: order.payment_status,  // THÊM TRƯỜNG NÀY      
       items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,

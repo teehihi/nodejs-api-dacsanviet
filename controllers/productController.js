@@ -80,9 +80,10 @@ const productController = {
     getCategories: async (req, res) => {
         try {
             const categories = await Product.getAllCategories();
+            // Trả về mảng tên danh mục (string[]) để tương thích với FE
             res.json({
                 success: true,
-                data: categories
+                data: categories.map(c => c.name)
             });
         } catch (error) {
             console.error('Get categories error:', error);

@@ -14,7 +14,18 @@ exports.getAllProducts = async (req, res) => {
     const offset = (page - 1) * limit;
 
     let query = `
-      SELECT p.*, c.name as category_name
+      SELECT p.id, p.name, p.description, p.short_description, p.price,
+             COALESCE(
+               (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),
+               (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),
+               p.image_url
+             ) as image_url,
+             p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
+             p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
+             p.discount_percent, p.discount_price,
+             CAST(p.is_active AS UNSIGNED) as is_active,
+             CAST(p.is_featured AS UNSIGNED) as is_featured,
+             c.name as category_name
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE 1=1
@@ -233,6 +244,23 @@ exports.updateProduct = async (req, res) => {
       if (primaryImage.length > 0) {
         updates.image_url = primaryImage[0].image_url;
       }
+    } else if (updates.image_url) {
+      // Không upload ảnh mới nhưng có đổi ảnh chính — update is_primary trong product_images
+      let primaryUrl = updates.image_url;
+      // Extract path nếu là URL đầy đủ (http://host/uploads/...)
+      if (primaryUrl.startsWith('http')) {
+        const urlObj = new URL(primaryUrl);
+        primaryUrl = urlObj.pathname; // lấy /uploads/...
+      }
+      // Reset tất cả về 0
+      await pool.query('UPDATE product_images SET is_primary = 0 WHERE product_id = ?', [id]);
+      // Set ảnh được chọn làm primary
+      await pool.query(
+        'UPDATE product_images SET is_primary = 1 WHERE product_id = ? AND image_url = ?',
+        [id, primaryUrl]
+      );
+      // Cập nhật luôn cột image_url trong products table để Manager hiển thị đúng
+      updates.image_url = primaryUrl;
     }
 
     // Recalculate discount_price if discount_percent or price changed

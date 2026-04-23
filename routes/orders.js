@@ -21,7 +21,7 @@ const createOrderValidation = [
   body('shippingAddress.city').notEmpty().withMessage('City is required'),
   body('paymentMethod')
     .optional()
-    .isIn(['COD', 'MOMO', 'VNPAY', 'BANK_TRANSFER', 'CREDIT_CARD', 'E_WALLET'])
+    .isIn(['COD', 'ZALOPAY', 'VNPAY', 'BANK_TRANSFER', 'CREDIT_CARD', 'E_WALLET'])
     .withMessage('Invalid payment method'),
 ];
 

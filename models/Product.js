@@ -1,5 +1,12 @@
 const { pool } = require('../config/database');
 
+// Subquery lấy ảnh primary cho sản phẩm
+const PRIMARY_IMAGE_SQL = `COALESCE(
+  (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),
+  (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),
+  p.image_url
+) as image_url`;
+
 class Product {
     // Tìm kiếm và lọc sản phẩm
     static async findAll({ q, minPrice, maxPrice, category, sort, limit = 20, offset = 0 }) {
@@ -8,7 +15,12 @@ class Product {
 
             // Convert bit(1) to boolean for easier handling
             let query = `
-        SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+        SELECT p.id, p.name, p.description, p.short_description, p.price,
+               COALESCE(
+                 (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),
+                 (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),
+                 p.image_url
+               ) as image_url,
                p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                p.discount_percent, p.discount_price,
@@ -135,7 +147,7 @@ class Product {
     static async findById(id) {
         try {
             const [rows] = await pool.execute(`
-        SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+        SELECT p.id, p.name, p.description, p.short_description, p.price, COALESCE((SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),(SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),p.image_url) as image_url, 
                p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                p.discount_percent, p.discount_price,
@@ -208,7 +220,7 @@ class Product {
     static async getBestSellers(limit = 10) {
         try {
             const [rows] = await pool.execute(`
-                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                SELECT p.id, p.name, p.description, p.short_description, p.price, COALESCE((SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),(SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),p.image_url) as image_url, 
                        p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                        p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                        p.discount_percent, p.discount_price,
@@ -239,7 +251,7 @@ class Product {
 
             // Prioritize products with actual discounts
             const [rows] = await pool.execute(`
-                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                SELECT p.id, p.name, p.description, p.short_description, p.price, COALESCE((SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),(SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),p.image_url) as image_url, 
                        p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                        p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                        p.discount_percent, p.discount_price,
@@ -314,7 +326,7 @@ class Product {
 
             // Then get other products in same category
             const [rows] = await pool.execute(`
-                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                SELECT p.id, p.name, p.description, p.short_description, p.price, COALESCE((SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),(SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),p.image_url) as image_url, 
                        p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                        p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                        p.discount_percent, p.discount_price,
@@ -343,7 +355,7 @@ class Product {
         if (!userId) return [];
         try {
             const [rows] = await pool.execute(`
-                SELECT p.id, p.name, p.description, p.short_description, p.price, p.image_url, 
+                SELECT p.id, p.name, p.description, p.short_description, p.price, COALESCE((SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND CAST(pi.is_primary AS UNSIGNED) = 1 LIMIT 1),(SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.display_order ASC LIMIT 1),p.image_url) as image_url, 
                        p.origin, p.stock_quantity, p.story, p.story_image_url, p.weight_grams,
                        p.created_at, p.updated_at, p.category_id, p.supplier_id, p.sold_quantity,
                        p.discount_percent, p.discount_price,

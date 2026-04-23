@@ -20,6 +20,7 @@ const favoriteRoutes = require('./routes/favorites');
 const couponRoutes = require('./routes/coupons');
 const loyaltyPointsRoutes = require('./routes/loyaltyPoints');
 const notificationRoutes = require('./routes/notifications');
+const paymentRoutes = require('./routes/payment');
 const { initSocket, notifyUser, notifyAdmin } = require('./socket/socketManager');
 const Notification = require('./models/Notification');
 const User = require('./models/User');
@@ -72,6 +73,7 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/loyalty-points', loyaltyPointsRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Admin Routes
 const adminRoutes = require('./routes/admin/index');
