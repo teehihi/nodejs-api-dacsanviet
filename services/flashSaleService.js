@@ -12,14 +12,16 @@ function getVNHour() {
 
 function getCurrentSlot() {
   const vnHour = getVNHour();
-  // Tìm slot hiện tại: slot bắt đầu <= vnHour < slot + 3
+  // Chỉ trả về slot nếu đang trong khung giờ hợp lệ (9-12, 12-15, 15-18, 18-21)
+  // 21h trở đi đến 9h sáng: không có flash sale → trả null
   for (let i = FLASH_SLOTS.length - 1; i >= 0; i--) {
-    if (vnHour >= FLASH_SLOTS[i]) {
-      return FLASH_SLOTS[i];
+    const slotStart = FLASH_SLOTS[i];
+    const slotEnd = slotStart + SLOT_DURATION_HOURS;
+    if (vnHour >= slotStart && vnHour < slotEnd) {
+      return slotStart;
     }
   }
-  // Nếu trước 9h thì dùng slot cuối cùng của hôm trước (21h)
-  return FLASH_SLOTS[FLASH_SLOTS.length - 1];
+  return null; // Ngoài khung giờ flash sale
 }
 
 function seededRandom(seed) {
@@ -43,26 +45,30 @@ async function createFlashSaleForSlot(slotHour) {
     const startUTC = new Date(`${dateStr}T${String(slotHour).padStart(2, '0')}:00:00+07:00`);
     const endUTC = new Date(startUTC.getTime() + SLOT_DURATION_HOURS * 60 * 60 * 1000);
 
-    // Kiểm tra đã có flash sale cho slot này chưa
+    // Kiểm tra đã có flash sale cho slot này chưa (dùng start_time trực tiếp)
     const [existing] = await conn.query(
-      `SELECT id FROM flash_sales WHERE slot_hour = ? AND DATE(CONVERT_TZ(start_time, '+00:00', '+07:00')) = ?`,
-      [slotHour, dateStr]
+      `SELECT id FROM flash_sales WHERE slot_hour = ? AND start_time = ?`,
+      [slotHour, startUTC]
     );
     if (existing.length > 0) {
       await conn.rollback();
       return existing[0].id;
     }
 
-    // Lấy ngẫu nhiên sản phẩm active
+    // Lấy sản phẩm active, dùng seed cố định theo ngày+slot để không đổi khi restart
     const [allProducts] = await conn.query(
-      `SELECT id, price FROM products WHERE CAST(is_active AS UNSIGNED) = 1 AND stock_quantity > 0 ORDER BY RAND() LIMIT ?`,
-      [PRODUCTS_PER_SLOT]
+      `SELECT id, price FROM products WHERE CAST(is_active AS UNSIGNED) = 1 AND stock_quantity > 0 ORDER BY id ASC`,
     );
 
     if (allProducts.length === 0) {
       await conn.rollback();
       return null;
     }
+
+    // Shuffle với seed cố định theo ngày + slot (không dùng RAND())
+    const seed = slotHour * 9999 + startUTC.getDate() * 31 + (startUTC.getMonth() + 1) * 12;
+    const rand = seededRandom(seed);
+    const shuffled = [...allProducts].sort(() => rand() - 0.5).slice(0, PRODUCTS_PER_SLOT);
 
     // Tạo flash sale record
     const [saleResult] = await conn.query(
@@ -71,19 +77,23 @@ async function createFlashSaleForSlot(slotHour) {
     );
     const saleId = saleResult.insertId;
 
-    // Assign random discount cho từng sản phẩm
-    const rand = seededRandom(slotHour * 9999 + startUTC.getDate());
-    for (const product of allProducts) {
-      const discountPct = DISCOUNT_OPTIONS[Math.floor(rand() * DISCOUNT_OPTIONS.length)];
-      const salePrice = Math.round(product.price * (1 - discountPct / 100));
-      await conn.query(
-        `INSERT INTO flash_sale_items (flash_sale_id, product_id, discount_percent, sale_price) VALUES (?, ?, ?, ?)`,
-        [saleId, product.id, discountPct, salePrice]
-      );
-    }
+      // Assign random discount cho từng sản phẩm + UPDATE discount_price vào products
+      const rand2 = seededRandom(seed + 1);
+      for (const product of shuffled) {
+        const discountPct = DISCOUNT_OPTIONS[Math.floor(rand2() * DISCOUNT_OPTIONS.length)];
+        const salePrice = Math.round(product.price * (1 - discountPct / 100));
+        await conn.query(
+          `INSERT INTO flash_sale_items (flash_sale_id, product_id, discount_percent, sale_price) VALUES (?, ?, ?, ?)`,
+          [saleId, product.id, discountPct, salePrice]
+        );
+        await conn.query(
+          `UPDATE products SET discount_price = ? WHERE id = ?`,
+          [salePrice, product.id]
+        );
+      }
 
-    await conn.commit();
-    console.log(`✅ Flash sale created for slot ${slotHour}h with ${allProducts.length} products`);
+      await conn.commit();
+      console.log(`✅ Flash sale created for slot ${slotHour}h with ${allProducts.length} products`);
     return saleId;
   } catch (err) {
     await conn.rollback();
@@ -98,7 +108,7 @@ async function createFlashSaleForSlot(slotHour) {
 async function getActiveFlashSale() {
   const now = new Date();
   const [sales] = await pool.query(
-    `SELECT fs.*, 
+    `SELECT fs.id, fs.slot_hour, fs.start_time, fs.end_time,
        p.id as product_id, p.name, p.description, p.image_url, p.origin,
        p.stock_quantity, p.sold_quantity, p.category_id,
        c.name as category,
@@ -109,8 +119,12 @@ async function getActiveFlashSale() {
      JOIN products p ON p.id = fsi.product_id
      LEFT JOIN categories c ON c.id = p.category_id
      WHERE fs.is_active = 1 AND fs.start_time <= ? AND fs.end_time > ?
+       AND fs.id = (
+         SELECT MAX(id) FROM flash_sales 
+         WHERE is_active = 1 AND start_time <= ? AND end_time > ?
+       )
      ORDER BY fsi.discount_percent DESC`,
-    [now, now]
+    [now, now, now, now]
   );
 
   if (sales.length === 0) return null;
@@ -138,11 +152,39 @@ async function getActiveFlashSale() {
   return saleInfo;
 }
 
-// Scheduler: chạy mỗi phút, tạo flash sale cho slot hiện tại nếu chưa có
+// Reset flash sale đã hết hạn — xóa discount_price tạm thời khỏi products
+async function resetExpiredFlashSalePrices() {
+  const now = new Date();
+  const [expired] = await pool.query(
+    `SELECT fs.id FROM flash_sales fs WHERE fs.is_active = 1 AND fs.end_time <= ?`,
+    [now]
+  );
+
+  for (const sale of expired) {
+    const [items] = await pool.query(
+      `SELECT product_id FROM flash_sale_items WHERE flash_sale_id = ?`,
+      [sale.id]
+    );
+    // Chỉ xóa discount_price tạm thời, giữ nguyên discount_percent gốc
+    for (const item of items) {
+      await pool.query(
+        `UPDATE products SET discount_price = NULL WHERE id = ?`,
+        [item.product_id]
+      );
+    }
+    await pool.query(`UPDATE flash_sales SET is_active = 0 WHERE id = ?`, [sale.id]);
+    console.log(`🔄 Flash sale #${sale.id} expired, discount_price reset for ${items.length} products`);
+  }
+}
+
+// Scheduler: chạy mỗi phút, tạo flash sale cho slot hiện tại nếu chưa có + reset hết hạn
 async function runFlashSaleScheduler() {
   try {
+    await resetExpiredFlashSalePrices(); // Reset trước
     const slot = getCurrentSlot();
-    await createFlashSaleForSlot(slot);
+    if (slot !== null) {
+      await createFlashSaleForSlot(slot); // Tạo mới nếu cần
+    }
   } catch (err) {
     console.error('❌ Flash sale scheduler error:', err.message);
   }

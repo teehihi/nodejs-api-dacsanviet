@@ -271,17 +271,15 @@ class Product {
         let finalPrice = originalPrice;
         let discountPercentage = 0;
 
-        if (dbProduct.discount_percent && dbProduct.discount_percent > 0) {
-            discountPercentage = dbProduct.discount_percent;
-            finalPrice = originalPrice * (1 - discountPercentage / 100);
-        } else if (dbProduct.discount_price && dbProduct.discount_price > 0 && dbProduct.discount_price < originalPrice) {
-            // If discount_price is explicitly set (assumed to be the final price or amount off? Let's assume amount off usually, but user named it discount_price, might be 'price after discount'. 
-            // Common pattern: if discount_price exists, it's the new price.
-            // BUT user added 'discount_price DECIMAL'. 
-            // Let's assume standard behavior: if percent exists, default to that. If not, check discount_price.
-            // Actually, simplest is: if discount_percent is present, use it.
-            // If not, just show original price.
-            // I will stick to discount_percent as primary.
+        // Ưu tiên discount_price nếu đã được set (vd: từ flash sale)
+        if (dbProduct.discount_price && parseFloat(dbProduct.discount_price) > 0 && parseFloat(dbProduct.discount_price) < originalPrice) {
+            finalPrice = parseFloat(dbProduct.discount_price);
+            discountPercentage = dbProduct.discount_percent && parseFloat(dbProduct.discount_percent) > 0
+                ? parseFloat(dbProduct.discount_percent)
+                : Math.round((1 - finalPrice / originalPrice) * 100);
+        } else if (dbProduct.discount_percent && parseFloat(dbProduct.discount_percent) > 0) {
+            discountPercentage = parseFloat(dbProduct.discount_percent);
+            finalPrice = Math.round(originalPrice * (1 - discountPercentage / 100));
         }
 
         return {
